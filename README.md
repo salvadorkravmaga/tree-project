@@ -20,8 +20,6 @@ $ cd tree-project
 
 $ pip install -r requirements.txt
 
-$ python config.py
-
 $ python treed.py
 
 Otherwise just download the whole project in zip format, unzip it and run treed.py
