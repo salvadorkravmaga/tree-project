@@ -34,8 +34,8 @@ You can send me a private message via TreeChat, my Tree identifier is: LEcmwqZLa
 
 Tree project relies purely on donations.
 
-BTC: 1Q9FG2wmHgxPZTpuyzq9zSuCgbNZSUkxtN
+BTC: 114ELJkpecyoyNVFeEcHws4xy5MYDv8HUC
 
-LTC: Lg9ELUTYSQvu4Eh4uz8EN2bRhdWE5pTa5Q
+LTC: LUkaaRscLB47KV3LyzGVibrhMnajvmiuso
 
 XMR: 48WKWs5ofvwNnNbg7oS5V3HyCYKvumFyoiViZEgxf56Jaffv1GqS5LffMesJCiY117DaRgGVy5etNTSSTzeu9F5GV6HaPzz
