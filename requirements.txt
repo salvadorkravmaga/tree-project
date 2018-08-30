@@ -1,0 +1,6 @@
+ecdsa
+requests
+flask
+flask-limiter
+pycrypto
+base58
