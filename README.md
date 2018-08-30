@@ -32,7 +32,7 @@ You can send me a private message via TreeChat, my Tree identifier is: LEcmwqZLa
 
 <h2 align="center">Donate</h2>
 
-Tree project relies purely on donations.
+Tree project relies purely on donations. You can support our project by donating any amount of money.
 
 BTC: 114ELJkpecyoyNVFeEcHws4xy5MYDv8HUC
 
