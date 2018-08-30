@@ -7,7 +7,6 @@ from src.protocol import other_nodes_get
 from src.check import operations, node
 from src.database import db, structure
 from src import setup
-from dApps.wallet import wallet_setup
 from flask import Flask, request, abort
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
