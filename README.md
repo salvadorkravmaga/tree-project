@@ -1,12 +1,10 @@
-<div align="center"><img src="https://raw.githubusercontent.com/salvadorkravmaga/tree-project/master/static/logo.png" width="200" height="150"></div>
+<div align="center"><img src="https://raw.githubusercontent.com/salvadorkravmaga/tree-project/master/logo.png" width="200" height="150"></div>
 
 <h2 align="center">Tree Project</h2>
 
 <h2 align="center">Details</h2>
 
 Programming language: Python (version 2.7)
-
-Supported operating systems: Linux (for now)
 
 Latest version: 0.1
 
@@ -26,19 +24,15 @@ $ python config.py
 
 $ python treed.py
 
-And then you are ready to explore the Tree Network, by opening your favorite web browser and by typing http://127.0.0.1:12996/<bitcoin_address_here>
+Otherwise just download the whole project in zip format, unzip it and run treed.py
 
 <h2 align="center">Contact me</h2>
 
-You can send me a private message, my Tree identifier is: 15jazuMxJJdVyCYB3hQQh6SD31dpjy4faH
-
-Or find me in Twitter: https://twitter.com/salvadorkrav
+You can send me a private message via TreeChat, my Tree identifier is: LEcmwqZLahSpWWyRvjHfs7JYruKB1jHpNoemY
 
 <h2 align="center">Donate</h2>
 
-Tree project relies purely on donations. If you want to support our efforts you can donate any amount of money or buy a product from our shop: http://127.0.0.1:12996/15jazuMxJJdVyCYB3hQQh6SD31dpjy4faH
-
-<div align="center"><img src="https://raw.githubusercontent.com/salvadorkravmaga/tree-project/master/static/bitcoin.png" width="150" height="150"><img src="https://raw.githubusercontent.com/salvadorkravmaga/tree-project/master/static/litecoin.png" width="150" height="150"><img src="https://raw.githubusercontent.com/salvadorkravmaga/tree-project/master/static/monero.png" width="150" height="150"></div>
+Tree project relies purely on donations.
 
 BTC: 1Q9FG2wmHgxPZTpuyzq9zSuCgbNZSUkxtN
 
