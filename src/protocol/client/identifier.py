@@ -26,7 +26,7 @@ def get(account,peer):
 		prove_ownership = messages.verify_message(Public_key,Signature,Address)
 		if prove_ownership == False:
 			return
-		cur.execute('SELECT * FROM peers WHERE identifier=?', (Identifier,))
+		cur.execute('SELECT * FROM peers WHERE identifier=? OR peer=?', (Identifier,peer))
 		result = cur.fetchall()
 		if len(result) == 0:
 			cur.execute('INSERT INTO peers (peer,identifier) VALUES (?,?)', (peer,Identifier))
