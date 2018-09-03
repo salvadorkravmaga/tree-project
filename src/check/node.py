@@ -151,7 +151,9 @@ def constructor(payload):
 					posted = True
 				except:
 					posted_tries += 1
-					time.sleep(2)
+					time.sleep(1)
+			payload = tx_hash + "," + timestamp
+			my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=payload)
 			result = "True"
 		return result
 	else:
