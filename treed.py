@@ -30,7 +30,7 @@ memory_pool = ["None,None,None,"+starting_time+",None,None,None,None,None,None"]
 
 accounts = []
 account_main = ""
-nodes = ["46.227.57.29","185.243.113.106","185.243.113.108","185.243.113.59"]
+nodes = ["185.243.113.106","185.243.113.108","185.243.113.59"]
 connections = []
 GetFromSettings = {}
 PostToSettings = {}
@@ -238,6 +238,21 @@ def get_other_nodes():
 			return "None"
 		else:
 			return other_nodes
+	else:
+		abort(403)
+
+@app.route('/connections/<account>', methods=['GET'])
+def connections_account(account):
+	if request.remote_addr == "127.0.0.1":
+		returned_connections = []
+		for connection in connections:
+			connection_details = connection.split(",")
+			Account = connection_details[0]
+			peer = connection_details[1]
+			if Account == account:
+				returned_connections.append(peer)
+		result = ','.join(returned_connections)
+		return result
 	else:
 		abort(403)
 
@@ -472,6 +487,23 @@ def dApps_operation_receiver(operation,receiver):
 	else:
 		abort(403)
 
+@app.route('/dApps/data/<operation>/receiver/<receiver>/suboperation/<suboperation>', methods=['GET'])
+def dApps_operation_receiver_suboperation(operation,receiver,suboperation):
+	if request.remote_addr == "127.0.0.1":
+		result = "None"
+		for dAppData in dAppsData:
+			dAppData_details = dAppData.split(",")
+			Operation = dAppData_details[0]
+			Receiver = dAppData_details[2]
+			Additional1 = dAppData_details[4]
+			if Operation == operation and Receiver == receiver and Additional1 == suboperation:
+				result = dAppData
+				dAppsData.remove(dAppData)
+				break
+		return str(result)
+	else:
+		abort(403)
+
 @app.route('/dApps/data/<operation>/sender/<sender>', methods=['GET'])
 def dApps_data_operation_sender(operation,sender):
 	if request.remote_addr == "127.0.0.1":
@@ -487,6 +519,77 @@ def dApps_data_operation_sender(operation,sender):
 		return str(result)
 	else:
 		abort(403)
+
+@app.route('/dApps/data/<operation>/sender/<sender>/suboperation/<suboperation>', methods=['GET'])
+def dApps_data_operation_sender_suboperation(operation,sender,suboperation):
+	if request.remote_addr == "127.0.0.1":
+		result = "None"
+		for dAppData in dAppsData:
+			dAppData_details = dAppData.split(",")
+			Operation = dAppData_details[0]
+			Sender = dAppData_details[1]
+			Additional1 = dAppData_details[4]
+			if Operation == operation and Sender == sender and Additional1 == suboperation:
+				result = dAppData
+				dAppsData.remove(dAppData)
+				break
+		return str(result)
+	else:
+		abort(403)
+
+@app.route('/nodes/total', methods=['GET'])
+def nodes_total():
+	if request.remote_addr in Banlist:
+		abort(403)
+	result = 0
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM peers')
+		result = cur.fetchall()
+		result = len(result)
+	except:
+		pass
+	finally:
+		try:
+			con.close()
+		except:
+			pass
+	return str(result)
+
+@app.route('/users/total', methods=['GET'])
+def users_total():
+	if request.remote_addr in Banlist:
+		abort(403)
+	result = 0
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM users')
+		result = cur.fetchall()
+		result = len(result)
+	except:
+		pass
+	finally:
+		try:
+			con.close()
+		except:
+			pass
+	return str(result)
+
+@app.route('/users/online', methods=['GET'])
+def users_online():
+	if request.remote_addr in Banlist:
+		abort(403)
+	result = 0
+	for data_in_pool in memory_pool:
+		data_in_pool_details = data_in_pool.split(",")
+		operation = data_in_pool_details[0]
+		if operation == "OSP":
+			result += 1
+	return str(result)
 
 @app.route('/user/<user>', methods=['GET'])
 def user_get(user):
