@@ -10,6 +10,8 @@ Latest version: 0.1
 
 Coded by: Salvador Kravmaga
 
+Website: https://www.treeproject.net/
+
 <h2 align="center">Installation</h2>
 
 Assuming you have already installed git and pip packages, open a new terminal and type:
