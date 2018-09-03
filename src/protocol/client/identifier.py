@@ -32,8 +32,14 @@ def get(account,peer):
 			cur.execute('INSERT INTO peers (peer,identifier) VALUES (?,?)', (peer,Identifier))
 			con.commit()
 		else:
-			cur.execute('UPDATE peers SET peer=? WHERE identifier=?', (peer,Identifier))
-			con.commit()
+			cur.execute('SELECT * FROM peers WHERE peer=?', (peer,))
+			result = cur.fetchall()
+			if len(result) == 1:
+				cur.execute('UPDATE peers SET identifier=? WHERE peer=?', (Identifier,peer))
+				con.commit()
+			else:
+				cur.execute('UPDATE peers SET peer=? WHERE identifier=?', (peer,Identifier))
+				con.commit()
 	except:
 		cur.execute('DELETE FROM peers WHERE peer=?', (peer,))
 		con.commit()
