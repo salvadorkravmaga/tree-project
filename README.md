@@ -32,8 +32,20 @@ You can send me a private message via TreeChat, my Tree identifier is: LEcmwqZLa
 
 Tree project relies purely on donations. You can support our project by donating any amount of money.
 
-BTC: 114ELJkpecyoyNVFeEcHws4xy5MYDv8HUC
+BTC - bc1qrl345y7q90nh70je637n94z9kcdv989yfed457
 
-LTC: LUkaaRscLB47KV3LyzGVibrhMnajvmiuso
+BCH - qqn03kncrfhf7ttwqsskl94fpr49a9j9sq4xj0zla2
+
+LTC - ltc1q4yvhq0md8atfptxumn3xgeyyxwjaeklkzcm80f
+
+DGB - dgb1qrj0mrpgl40dprc3ndke05fvgg0j22epqllzwpj
+
+ETH - 0x72cfa4738408929ca41e78eed3f13c426134b365
+
+ETC - 0x4c2b074b7477e6192c31f0fe92199ed0516fdc72
+
+DASH - XjgRonxahSdouKSTq8pJhv8DGHFssJ6sDG
+
+ZEC - t1KA29Lo5tEpfsfrwvyE3Bsbov8U3kxQ1vW
 
 XMR: 48WKWs5ofvwNnNbg7oS5V3HyCYKvumFyoiViZEgxf56Jaffv1GqS5LffMesJCiY117DaRgGVy5etNTSSTzeu9F5GV6HaPzz
