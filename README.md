@@ -12,8 +12,6 @@ Website: https://www.treeproject.net/
 
 <h2 align="center">Installation</h2>
 
-Linux , OSX etc
-
 Assuming you have already installed git and pip packages, open a new terminal and type:
 
 $ git clone https://github.com/salvadorkravmaga/tree-project.git
@@ -24,9 +22,9 @@ $ pip install -r requirements.txt
 
 $ python treed.py
 
-Windows, Linux, OSX etc
-
 Otherwise just download the whole project in zip format, unzip it and run treed.py
+
+Requirements.txt file contains all python modules needed for the tree daemon to run properly.
 
 <h2 align="center">Contact me</h2>
 
