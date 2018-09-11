@@ -337,6 +337,7 @@ def memory_pool_new():
 					Time_added = Payload_details[3]
 					if operation == Operation and sender == Sender and receiver == Receiver and float(time_added) - float(Time_added) >= 600:
 						memory_pool.remove(data_in_pool)
+						found = True
 						result = node.constructor(payload)
 						if result == True:
 							if payload not in memory_pool:
