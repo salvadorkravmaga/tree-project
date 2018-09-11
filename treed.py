@@ -611,13 +611,15 @@ def users_total():
 def users_online():
 	if request.remote_addr in Banlist:
 		abort(403)
-	result = 0
+	result = []
 	for data_in_pool in memory_pool:
 		data_in_pool_details = data_in_pool.split(",")
 		operation = data_in_pool_details[0]
+		sender = data_in_pool_details[1]
 		if operation == "OSP":
-			result += 1
-	return str(result)
+			if sender not in result:
+				result.append(sender)
+	return str(len(result))
 
 @app.route('/user/<user>', methods=['GET'])
 def user_get(user):
@@ -978,7 +980,7 @@ def daemon_data():
 					details = data_in_pool.split(",")
 					time_added = details[3]
 					time_now = time.time()
-					if time_now - float(time_added) > 660:
+					if time_now - float(time_added) > 600:
 						memory_pool.remove(data_in_pool)
 		except:
 			pass
@@ -1000,7 +1002,7 @@ def daemon_data():
 					details = data_in_pool.split(",")
 					time_added = details[-1]
 					time_now = time.time()
-					if time_now - float(time_added) > 660:
+					if time_now - float(time_added) > 600:
 						dAppsData.remove(data_in_pool)
 		except:
 			pass
