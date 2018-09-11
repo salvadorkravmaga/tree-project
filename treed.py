@@ -310,16 +310,17 @@ def memory_pool_new():
 			operation = payload_details[0]
 			sender = payload_details[1]
 			receiver = payload_details[2]
-			found = False
-			for data_in_pool in memory_pool:
-				data_in_pool_details = data_in_pool.split(",")
-				OPERATION = data_in_pool_details[0]
-				RECEIVER = data_in_pool_details[2]
-				if OPERATION == "OSP" and RECEIVER == receiver:
-					found = True
-					break
-			if found == False:
-				return "Done"
+			if operation == "OSP":
+				found = False
+				for data_in_pool in memory_pool:
+					data_in_pool_details = data_in_pool.split(",")
+					OPERATION = data_in_pool_details[0]
+					RECEIVER = data_in_pool_details[2]
+					if OPERATION == "OSP" and RECEIVER == receiver:
+						found = True
+						break
+				if found == False:
+					return "Done"
 			time_added = payload_details[3]
 			if time.time() - float(time_added) > 600:
 				return "Done"
