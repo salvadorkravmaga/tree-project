@@ -310,7 +310,7 @@ def memory_pool_new():
 			operation = payload_details[0]
 			sender = payload_details[1]
 			receiver = payload_details[2]
-			if operation == "OSP":
+			if operation != "OSP":
 				found = False
 				for data_in_pool in memory_pool:
 					data_in_pool_details = data_in_pool.split(",")
