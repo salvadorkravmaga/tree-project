@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from src.cryptography import address, messages, keys, encrypt, decrypt
-from src.protocol.client import identifier, new_data, online_status, other_nodes
+from src.protocol.client import identifier, new_data, online_status, other_nodes, user
 from src.protocol import other_nodes_get
 from src.check import operations, node
 from src.database import db, structure
@@ -40,6 +40,7 @@ my_data = []
 dAppsData = []
 my_transactions = []
 Banlist = []
+get_users = []
 processes = {}
 
 path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -256,6 +257,17 @@ def connections_account(account):
 	else:
 		abort(403)
 
+@app.route('/get/users', methods=['POST'])
+def GET_USERS():
+	if request.remote_addr == "127.0.0.1":
+		data = request.data
+		if len(data) >= 36 and len(data) <= 50:
+			if data not in get_users:
+				get_users.append(data)
+		return "Done"
+	else:
+		abort(403)
+
 @app.route('/last/log/new', methods=['POST'])
 def last_log_new():
 	if request.remote_addr == "127.0.0.1":
@@ -298,7 +310,19 @@ def memory_pool_new():
 			operation = payload_details[0]
 			sender = payload_details[1]
 			receiver = payload_details[2]
+			found = False
+			for data_in_pool in memory_pool:
+				data_in_pool_details = data_in_pool.split(",")
+				OPERATION = data_in_pool_details[0]
+				RECEIVER = data_in_pool_details[2]
+				if OPERATION == "OSP" and RECEIVER == receiver:
+					found = True
+					break
+			if found == False:
+				return "Done"
 			time_added = payload_details[3]
+			if time.time() - float(time_added) > 600:
+				return "Done"
 			additional1 = payload_details[4]
 			data = payload_details[7]
 			tx_hash = payload_details[8]
@@ -593,7 +617,7 @@ def users_online():
 
 @app.route('/user/<user>', methods=['GET'])
 def user_get(user):
-	if len(user) != 36 and len(user) != 37:
+	if len(user) >= 36 and len(user) <= 50:
 		abort(403)
 	result = "None"
 	for data_in_pool in memory_pool:
@@ -604,6 +628,64 @@ def user_get(user):
 			result = data_in_pool
 			break
 	return result
+
+@app.route('/<account>/private_keys', methods=['GET'])
+def account_private_keys(account):
+	if request.remote_addr == "127.0.0.1":
+		if len(account) >= 36 and len(account) <= 50:
+			abort(403)
+		try:
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			private_keys = []
+			cur.execute('SELECT * FROM keys WHERE identifier=?', (account,))
+			results = cur.fetchall()
+			if len(result) > 0:
+				for result in results:
+					private_key = result["private_key"]
+					if private_key not in private_keys:
+						private_keys.append(private_key)
+				result = ','.join(private_keys)
+				return result
+			else:
+				return "None"
+		except:
+			pass
+		finally:
+			try:
+				con.close()
+			except:
+				pass
+		return "None"
+	else:
+		abort(403)
+
+@app.route('/user/<user>/public_key', methods=['GET'])
+def user_get_public_key(user):
+	if request.remote_addr == "127.0.0.1":
+		if len(user) >= 36 and len(user) <= 50:
+			abort(403)
+		try:
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			cur.execute('SELECT * FROM users WHERE identifier=?', (user,))
+			result = cur.fetchall()
+			if len(result) == 1:
+				public_key = result[0]["public_key"]
+			else:
+				return "None"
+		except:
+			pass
+		finally:
+			try:
+				con.close()
+			except:
+				pass
+		return "None"
+	else:
+		abort(403)
 
 @app.route('/dApps/new', methods=['POST'])
 def dApps_new():
@@ -934,6 +1016,7 @@ def daemon():
 	Last_online = 0
 	Last_search = 0
 	Last_peers_check = 0
+	last_get_users_check = 0
 	while True:
 
 		try:
@@ -1021,6 +1104,25 @@ def daemon():
 						con.commit()
 		except:
 			pass
+
+		if time.time() - last_get_users_check > 300:
+			try:
+				for get_user in get_users:
+					for connection in connections:
+						connection_details = connection.split(",")
+						account = connection_details[0]
+						peer = connection_details[1]
+						try:
+							Identifier,returned_data = user.get(account,peer,get_user)
+							if Identifier != False and returned_data != False:
+								result = memory_new(Identifier,returned_data)
+								if result == "Added":
+									break
+						except:
+							pass
+				last_get_users_check = time.time()	
+			except:
+				pass
 		
 		try:
 			for account in accounts:

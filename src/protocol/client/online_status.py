@@ -1,4 +1,3 @@
-import socket
 from src.cryptography import address, messages, encrypt, decrypt
 import time
 import sqlite3 as sql
