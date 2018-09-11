@@ -617,7 +617,7 @@ def users_online():
 
 @app.route('/user/<user>', methods=['GET'])
 def user_get(user):
-	if len(user) < 36 and len(user) > 50:
+	if len(user) < 36 or len(user) > 50:
 		abort(403)
 	result = "None"
 	for data_in_pool in memory_pool:
