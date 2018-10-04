@@ -31,7 +31,7 @@ starting_time = str(time.time())
 memory_pool = ["None,None,None,"+starting_time+",None,None,None,None,None,None"]
 
 accounts = []
-nodes = ["185.243.113.106","185.243.113.108","185.243.113.59"]
+nodes = ["::ffff:185.243.113.106","::ffff:185.243.113.108","::ffff:185.243.113.59"]
 connections = []
 GetFromSettings = {}
 PostToSettings = {}
