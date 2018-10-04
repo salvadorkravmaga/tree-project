@@ -1,28 +1,18 @@
-from src.cryptography import address, messages, encrypt, decrypt
+from src.cryptography import address, messages
 import time
 import sqlite3 as sql
 import requests
-from hashlib import sha256
+import ipaddress
 
-def get(account,peer,user):
+def whatis(ip):
 	try:
-		con = sql.connect("info.db")
-		con.row_factory = sql.Row
-		cur = con.cursor()
-		cur.execute('SELECT * FROM accounts WHERE identifier=?', (account,))
-		accounts = cur.fetchall()
-		private_key_hex = accounts[0]["private_key_hex"]
-		public_key_hex = accounts[0]["public_key_hex"]
-		Address = address.keyToAddr(public_key_hex)
-		return_data = requests.get("http://"+peer+":12995/account/main/"+Address)
-		return_data = return_data.content
-		return_data_details = return_data.split(",")
-		Identifier = return_data_details[0]
-		Public_key = return_data_details[1]
-		Signature = return_data_details[2]
-		prove_ownership = messages.verify_message(Public_key,Signature,Address)
-		if prove_ownership == False:
-			return False,False
+		result = ipaddress.ip_address(unicode(ip))
+		return str(result.version)
+	except:
+		return False
+
+def get(peer,user):
+	try:
 		return_data = requests.get("http://"+peer+":12995/user/"+user)
 		if return_data.content != "None" and return_data.status == 200:
 			return Identifier,return_data.content
