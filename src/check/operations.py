@@ -1,6 +1,7 @@
 from src.cryptography import messages, address
 from hashlib import sha256
 import time
+import requests
 
 def check_payload(payload):
 	details = payload.split(",")
@@ -9,11 +10,11 @@ def check_payload(payload):
 		sender = details[1]
 		receiver = details[2]
                 additional3 = details[6]
-                Address = address.keyToAddr2(additional3,sender)
+                Address = address.keyToAddr(additional3,sender)
                 if Address != sender:
-			return False
+			return sender + "," + False
 		if len(sender) < 36 or len(receiver) < 36 or len(sender) > 50 or len(receiver) > 50:
-			return False
+			return sender + "," + False
 		timestamp = str(int(float(details[3])))
 		time_now = time.time()
 		additional1 = details[4]
@@ -27,10 +28,15 @@ def check_payload(payload):
 			final = TX_hash
 			prove_ownership = messages.verify_message(additional3, signature, final)
 			if prove_ownership == True:
-				return sender + "," + "True"
+				result = requests.get("http://127.0.0.1:12995/tx/"+TX_hash)
+				result = result.content
+				if result == "False":
+					return sender + "," + "True"
+				else:
+					return sender + "," + "Received"
 			else:
-				return False
+				return sender + "," + False
 		else:
-			return False
+			return sender + "," + False
 	else:
-		return False
+		return sender + "," + False

@@ -77,26 +77,30 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 	try:
 		if sender != receiver:
 			return False
-		if len(sender) != 36 and len(sender) != 37:
-			return False
-		if len(receiver) != 36 and len(receiver) != 37:
-			return False
-		if additional1 == "None" and additional2 == "None":
-			if sender == receiver:
-				try:
-					Data = data.decode("hex")
-				except:
-					return False
-				if Data != "None" and Data != "":
-					cur.execute('DELETE FROM users WHERE identifier=?', (sender,))
-					con.commit()
-					cur.execute('INSERT INTO users (identifier,public_key_hex,public_key,last_online) VALUES (?,?,?,?)', (sender,additional3,Data,timestamp))
-					con.commit()
-					payload = tx_hash + "," + timestamp
-					my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=payload)
-					return True
+		if additional1 == "None":
+			try:
+				Data = data.decode("hex")
+			except:
+				return False
+			try:
+				protocols = additional2.decode("hex")
+				protocols_details = protocols.split(",")
+				if "OSP" in protocols_details:
+					protocols_details.remove("OSP")
+				if len(protocols_details) > 0:
+					protocols = ','.join(protocols_details)
 				else:
-					return False
+					protocols = "None"
+			except:
+				return False
+			if Data != "None" and Data != "":
+				cur.execute('DELETE FROM users WHERE identifier=?', (sender,))
+				con.commit()
+				cur.execute('INSERT INTO users (identifier,public_key_hex,public_key,last_online,protocols) VALUES (?,?,?,?,?)', (sender,additional3,Data,timestamp,protocols))
+				con.commit()
+				payload = tx_hash + "," + timestamp
+				my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=payload)
+				return True
 			else:
 				return False
 		else:
@@ -140,8 +144,6 @@ def constructor(payload):
 		signature = details[9]
 		if operation == "OSP":
 			result = online_status(sender,receiver,timestamp,additional1,additional2,additional3,data,tx_hash,signature)
-		elif operation == "TPP":
-			result = payment(sender,receiver,timestamp,additional1,additional2,additional3,data,tx_hash,signature)
 		else:
 			posted = False
 			posted_tries = 0
