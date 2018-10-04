@@ -22,6 +22,8 @@ def help():
 	print "-newaccount	Creates new account"
 	print "-importprivkey	Imports private key"
 	print "-exportprivkey	Exports private key"
+	print "-importfake	Imports fake private key"
+	print "-exportfake	Exports fake private key"
 	print "-deleteaccount	Deletes a specific account"
 	print "-clean		Deletes all accounts and encryption keys"
 
@@ -108,6 +110,27 @@ def importprivkey():
 	else:
 		print "This private key does not prove ownership of " + Address
 
+def importfake():
+	private_key_hex = raw_input("Enter private key in hex format: ")
+	public_key_hex, Address = address.details_from_private_fake(private_key_hex)
+	signature = messages.sign_message(private_key_hex,"test")
+	prove_ownership = messages.verify_message(public_key_hex, signature.encode("hex"), "test")
+	if prove_ownership == True:
+		cur.execute('SELECT * FROM fake_account')
+		result = cur.fetchall()
+		if len(result) == 0:
+			try:
+				cur.execute('INSERT INTO fake_account (fakeidentifier,fake_private_key_hex,fake_public_key_hex) VALUES (?,?,?)', (Address,private_key_hex,public_key_hex))
+				con.commit()
+				print "[+] Account " + Address + " added"
+			except Exception as e:
+				print e
+		else:
+			print "Another fake account already exists. Exiting.."
+		con.close()
+	else:
+		print "This private key does not prove ownership of " + Address
+
 def exportprivkey():
 	try:
 		account = raw_input("Account name: ")
@@ -117,6 +140,19 @@ def exportprivkey():
 			if len(accounts) == 1:
 				private_key_hex = accounts[0]["private_key_hex"]
 				print "[+] Private key (HEX): " + private_key_hex
+		else:
+			print "No account found"
+	except Exception as e:
+		print e
+	con.close()
+
+def exportfake():
+	try:
+		cur.execute('SELECT * FROM fake_account')
+		accounts = cur.fetchall()
+		if len(accounts) == 1:
+			private_key_hex = accounts[0]["fake_private_key_hex"]
+			print "[+] Private key (HEX): " + private_key_hex
 		else:
 			print "No account found"
 	except Exception as e:
@@ -160,6 +196,10 @@ def main(arguments):
 			importprivkey()
 		elif "-exportprivkey" in arguments:
 			exportprivkey()
+		elif "-importfake" in arguments:
+			importfake()
+		elif "-exportfake" in arguments:
+			exportfake()
 		elif "-deleteaccount" in arguments:
 			deleteaccount()
 		elif "-clean" in arguments:

@@ -2,17 +2,17 @@
 # -*- coding: utf-8 -*-
 
 from src.cryptography import address, messages, keys, encrypt, decrypt
-from src.protocol.client import identifier, new_data, online_status, other_nodes, user
+from src.protocol.client import identifier, new_data, online_status, other_nodes
 from src.protocol import other_nodes_get
 from src.check import operations, node
 from src.database import db, structure
 from src import setup
+from src.proof import generator, proof_of_work
 from flask import Flask, request, abort
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
 import requests
-from hashlib import sha256
 import ConfigParser
 import sys
 import os, os.path
@@ -21,6 +21,8 @@ import time
 import sqlite3 as sql
 import thread
 import logging
+import ipaddress
+
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.CRITICAL)
 
@@ -29,18 +31,15 @@ starting_time = str(time.time())
 memory_pool = ["None,None,None,"+starting_time+",None,None,None,None,None,None"]
 
 accounts = []
-account_main = ""
 nodes = ["185.243.113.106","185.243.113.108","185.243.113.59"]
 connections = []
 GetFromSettings = {}
 PostToSettings = {}
 PostTo = []
-accessible = []
 my_data = []
 dAppsData = []
 my_transactions = []
 Banlist = []
-get_users = []
 processes = {}
 
 path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -51,8 +50,15 @@ app = Flask(__name__)
 limiter = Limiter(
     app,
     key_func=get_remote_address,
-    default_limits=["50 per minute"]
+    default_limits=["60 per minute"]
 )
+
+def whatis(ip):
+	try:
+		result = ipaddress.ip_address(unicode(ip))
+		return str(result.version)
+	except:
+		return False
 
 def limit_content_length(max_length):
     def decorator(f):
@@ -118,6 +124,8 @@ try:
 	cur = con.cursor()
 	cur.execute('SELECT * FROM accounts')
 	Accounts = cur.fetchall()
+	cur.execute('SELECT * FROM fake_account')
+	FakeAccounts = cur.fetchall()
 	cur.execute('SELECT * FROM banlist')
 	banlist = cur.fetchall()
 	for banned_user in banlist:
@@ -137,6 +145,8 @@ except:
 	cur = con.cursor()
 	cur.execute('SELECT * FROM accounts')
 	Accounts = cur.fetchall()
+	cur.execute('SELECT * FROM fake_account')
+	FakeAccounts = cur.fetchall()
 	cur.execute('SELECT * FROM banlist')
 	banlist = cur.fetchall()
 	for banned_user in banlist:
@@ -171,17 +181,16 @@ if len(Accounts) == 0:
 		sys.exit(1)
 
 	print "		[+] New account " + Accountaddress + " created"
-	account_main = Accountaddress
-	GetFromSettings.update({account_main:"ALL"})
-	PostToSettings.update({account_main:"ALL"})
-	accounts.append(account_main)
+	GetFromSettings.update({Accountaddress:"ALL"})
+	PostToSettings.update({Accountaddress:"ALL"})
+	accounts.append(Accountaddress)
 else:
 	for Account in Accounts:
 		try:
 			account = Account["identifier"]
 			private_key_hex = Account["private_key_hex"]
 			public_key_hex = Account["public_key_hex"]
-			Accountaddress = address.keyToAddr(public_key_hex)
+			Accountaddress = address.keyToAddr(public_key_hex,account)
 			if Accountaddress != account:
 				cur.execute('UPDATE accounts SET identifier=? WHERE identifier=?', (Accountaddress,account))
 				con.commit()
@@ -201,20 +210,42 @@ else:
 			print "	[-] Error with private key. Maybe wrong format (WIF)? Exiting.."
 			sys.exit(1)
 
-if len(accounts) == 1:
-	account_main = accounts[0]
-
-if account_main == "":
-	checks = 0
-	for account in accounts:
-		print str(checks) + ": " + account
-		checks += 1
-	choice = raw_input("Enter account to use: ")
+if len(FakeAccounts) == 0:
+	print "	[!] Generating new fake account"
+	fake_private_key_hex,fake_public_key_hex,fakeAccountaddress = address.generate_fakeIdentifier()
 	try:
-		account_main = accounts[int(choice)]
+		cur.execute('INSERT INTO fake_account (fakeidentifier,fake_private_key_hex,fake_public_key_hex) VALUES (?,?,?)', (fakeAccountaddress,fake_private_key_hex,fake_public_key_hex))
+		con.commit()
 	except:
-		print "	[-] Invalid number typed. Exiting.."
+		print "		[-] DB error. Exiting.."
 		sys.exit(1)
+	print "		[+] New fake account " + fakeAccountaddress + " created"
+elif len(FakeAccounts) == 1:
+	try:
+		fake_account = FakeAccounts[0]["fakeidentifier"]
+		fake_private_key_hex = FakeAccounts[0]["fake_private_key_hex"]
+		fake_public_key_hex = FakeAccounts[0]["fake_public_key_hex"]
+		fake_Accountaddress = address.keyToAddr2(fake_public_key_hex,fake_account)
+		if fake_Accountaddress != fake_account:
+			cur.execute('UPDATE fake_account SET identifier=? WHERE identifier=?', (fake_Accountaddress,fake_account))
+			con.commit()
+		signature = messages.sign_message(fake_private_key_hex,"test")
+		if signature == False:
+			print "	[-] There was a problem with signature. Exiting.."
+			sys.exit(1)
+		prove_ownership = messages.verify_message(fake_public_key_hex, signature.encode("hex"), "test")
+		if prove_ownership == False:
+			print "	[-] The private key " + fake_private_key_hex + " does not prove ownership of " + fake_account
+			cur.execute('DELETE FROM fake_account WHERE identifier=?', (fake_account,))
+			con.commit()
+		else:
+			print "	[+] Fake account successfully loaded: " + fake_account
+	except:
+		print "	[-] Error with private key. Maybe wrong format (WIF)? Exiting.."
+		sys.exit(1)
+else:
+	print "	[-] More than one fake account detected. Exiting.."
+	sys.exit(1)
 
 for account in accounts:
 	try:
@@ -231,6 +262,31 @@ for account in accounts:
 	except:
 		GetFromSettings.update({account:"ALL"})
 
+try:
+	trusted_nodes_setting = config.get('Configuration', 'TrustedNodes')
+	trusted_nodes_list = trusted_nodes_setting.split(",")
+	final_trusted_nodes = []
+	for trusted_node_list in trusted_nodes_list:
+		if len(trusted_node_list) == 52:
+			if trusted_node_list not in trusted_nodes:
+				final_trusted_nodes.append(trusted_node_list)
+				cur.execute('SELECT * FROM trusted_nodes WHERE identifier=?', (trusted_node_list,))
+				result = cur.fetchall()
+				if len(result) == 0:
+					cur.execute('INSERT INTO trusted_nodes (identifier) VALUES (?)', (trusted_node_list,))
+					con.commit()
+	cur.execute('SELECT * FROM trusted_nodes')
+	result = cur.fetchall()
+	if len(result) > 0:
+		for trusted_node in result:
+			if trusted_node["identifier"] not in final_trusted_nodes:
+				cur.execute('DELETE FROM trusted_nodes WHERE identifier=?', (trusted_node["identifier"],))
+				con.commit()
+	final_trusted_nodes = []
+	trusted_nodes_list = []
+except:
+	pass
+
 @app.route('/other/nodes', methods=['GET'])
 def get_other_nodes():
 	if request.remote_addr not in Banlist:
@@ -244,7 +300,7 @@ def get_other_nodes():
 
 @app.route('/connections/<account>', methods=['GET'])
 def connections_account(account):
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		returned_connections = []
 		for connection in connections:
 			connection_details = connection.split(",")
@@ -257,20 +313,9 @@ def connections_account(account):
 	else:
 		abort(403)
 
-@app.route('/get/users', methods=['POST'])
-def GET_USERS():
-	if request.remote_addr == "127.0.0.1":
-		data = request.data
-		if len(data) >= 36 and len(data) <= 50:
-			if data not in get_users:
-				get_users.append(data)
-		return "Done"
-	else:
-		abort(403)
-
 @app.route('/last/log/new', methods=['POST'])
 def last_log_new():
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		data = request.data
 		details = data.split(",")
 		Identifier = details[0]
@@ -298,7 +343,7 @@ def last_log_new():
 
 @app.route('/memory/pool/new', methods=['POST'])
 def memory_pool_new():
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		try:
 			global memory_pool
 			con = sql.connect("info.db", check_same_thread=False)
@@ -311,6 +356,29 @@ def memory_pool_new():
 			operation = payload_details[0]
 			sender = payload_details[1]
 			receiver = payload_details[2]
+			time_added = payload_details[3]
+			if time.time() - float(time_added) > 1800:
+				return "Done"
+			if operation != "OSP":
+				found = False
+				for data_in_pool in memory_pool:
+					data_in_pool_details = data_in_pool.split(",")
+					OPERATION = data_in_pool_details[0]
+					SENDER = data_in_pool_details[1]
+					if OPERATION == "OSP" and SENDER == sender:
+						found = True
+						break
+				if found == False:
+					return "Done"
+				times_found = 0
+				for data_in_pool in memory_pool:
+					data_in_pool_details = data_in_pool.split(",")
+					OPERATION = data_in_pool_details[0]
+					SENDER = data_in_pool_details[1]
+					if sender == SENDER and OPERATION != "OSP":
+						times_found += 1
+				if times_found >= 5:
+					return "Done"
 			if operation != "OSP":
 				found = False
 				for data_in_pool in memory_pool:
@@ -322,9 +390,35 @@ def memory_pool_new():
 						break
 				if found == False:
 					return "Done"
-			time_added = payload_details[3]
-			if time.time() - float(time_added) > 600:
-				return "Done"
+				else:
+					cur.execute('SELECT * FROM users WHERE identifier=?', (receiver,))
+					result = cur.fetchall()
+					if len(result) == 1:
+						supportedDAPPS = result[0]["protocols"]
+						supportedDAPPS_details = supportedDAPPS.split(",")
+						if operation not in supportedDAPPS_details:
+							return "Done"
+					else:
+						return "Done"
+			if operation != "OSP":
+				cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (sender,receiver))
+				result = cur.fetchall()
+				if len(result) == 1:
+					times_connected = result[0]["times_connected"]
+					if int(times_connected) >= 10:
+						return "Done"
+					else:
+						times_connected_updated = int(times_connected) + 1
+						cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', (times_connected_updated, sender, receiver))
+						con.commit()
+				else:
+					cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (receiver,sender))
+					result = cur.fetchall()
+					if len(result) == 1:
+						cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', ("0",receiver,sender))
+						con.commit()
+					cur.execute('INSERT INTO connections (sender,receiver,times_connected,time) VALUES (?,?,?,?)', (sender,receiver,"0",str(time.time())))
+					con.commit()
 			additional1 = payload_details[4]
 			data = payload_details[7]
 			tx_hash = payload_details[8]
@@ -336,12 +430,13 @@ def memory_pool_new():
 					Sender = Payload_details[1]
 					Receiver = Payload_details[2]
 					Time_added = Payload_details[3]
+					TX_HASH = Payload_details[8]
 					if operation == Operation and sender == Sender and receiver == Receiver and float(time_added) - float(Time_added) >= 600:
-						memory_pool.remove(data_in_pool)
 						result = node.constructor(payload)
 						if result == True:
 							if payload not in memory_pool:
 								memory_pool.append(payload)
+								memory_pool.remove(data_in_pool)
 							requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
 							return "Data added to the pool."
 						else:
@@ -379,117 +474,109 @@ def memory_pool_new():
 	else:
 		abort(403)
 
-@app.route('/data/new/<Identifier>/<public_key>/<timestamp>/<signature>', methods=['POST'])
-@limit_content_length(2 * 1024 * 1024)
-@test_peers()
-def data_new(Identifier,public_key,timestamp,signature):
-	if request.remote_addr in Banlist:
-		abort(403)
-	testing_address = address.keyToAddr(public_key)
-	if testing_address != Identifier:
-		abort(403)
-	if testing_address in Banlist:
-		abort(403)
-	message = Identifier + ":" + timestamp
-	prove_ownership = messages.verify_message(public_key, signature, message)
-	if prove_ownership == False:
-		abort(403)
-	last_logs(Identifier)
-	if time.time() - float(timestamp) < 40:
-		payload = request.data
-		result = memory_new(Identifier,payload)
-		if result == "Ban":
-			check_my_transactions = requests.get("http://127.0.0.1:12995/check/ban/"+Identifier+"/"+request.remote_addr)
+@app.route('/encrypt', methods=['GET'])
+def encryption():
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM encryption_key')
+		result = cur.fetchall()
+		if len(result) > 0:
+			public_key = result[-1]["public_key"]
+			return public_key
 		else:
-			return "Added"
-	else:
-		abort(403)
+			return "Something went wrong."
+	except:
+		return "Something went wrong."
+	finally:
+		try:
+			con.close()
+		except:
+			pass
 
-@app.route('/data/pool/new', methods=['POST'])
-def data_pool_new():
-	if request.remote_addr == "127.0.0.1":
-		payload = request.data
-		if payload not in my_data:
-			my_data.append(payload)
-		return "True"
-	else:
-		abort(403)
-
-@app.route('/tx/new', methods=['POST'])
-def my_transactions_add():
-	if request.remote_addr == "127.0.0.1":
-		data = request.data
-		if data not in my_transactions:
-			my_transactions.append(data)
-	return "Done"
-
-@app.route('/tx/<tx>', methods=['GET'])
-def check_transaction(tx):
-	if request.remote_addr == "127.0.0.1":
-		found = False
-		for transaction in my_transactions:
-			details = transaction.split(",")
-			tx_hash = details[0]
-			if tx_hash == tx:
-				found = True
-				break
-	return str(found)
-
-@app.route('/get/nodes', methods=['GET'])
-def get_nodes():
-	if request.remote_addr == "127.0.0.1":
-		result = ','.join(nodes)
-		return result
-	else:
-		abort(403)
-
-@app.route('/memory/search/<user>/<public_key>/<timestamp>/<signature>', methods=['GET'])
+@app.route('/info', methods=['GET'])
 @test_peers()
-def memory_search_user(user,public_key,timestamp,signature):
-	final = "None"
+def nodeinfo():
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM fake_account')
+		result = cur.fetchall()
+		identifier = result[0]["fakeidentifier"]
+		public_key = result[0]["fake_public_key_hex"]
+		private_key = result[0]["fake_private_key_hex"]
+		timestamp = str(int(time.time()))
+		signature = messages.sign_message(private_key,identifier+":"+timestamp)
+		return str(identifier + "," + public_key + "," + signature.encode("hex") + "," + timestamp)
+	except:
+		return "Something went wrong."
+	finally:
+		try:
+			con.close()
+		except:
+			pass
+
+@app.route('/proofofwork/<user>/<public_key>/<timestamp>/<signature>', methods=['GET'])
+def proofofwork_generate(user,public_key,timestamp,signature):
 	if request.remote_addr in Banlist:
 		abort(403)
-	testing_address = address.keyToAddr(public_key)
+	if len(user) != 52:
+		abort(403)
+	testing_address = address.keyToAddr2(public_key,user)
 	if testing_address != user:
 		abort(403)
 	if testing_address in Banlist:
 		abort(403)
 	message = user + ":" + timestamp
-	prove_ownership = messages.verify_message(public_key,signature,message)
+	prove_ownership = messages.verify_message(public_key, signature, message)
 	if prove_ownership == False:
 		abort(403)
-	last_logs(user)
-	if time.time() - float(timestamp) < 10 and time.time() - float(timestamp) > 10:
-		for data_in_pool in memory_pool:
-			details = data_in_pool.split(",")
-			operation = details[0]
-			receiver = details[2]
-			additional1 = details[4]
-			TX_hash = details[8]
-			if receiver == user and operation != "OSP":
-				final = data_in_pool
-				memory_pool.remove(data_in_pool)
-				break
-	
-	return final
-
-@app.route('/account/main/<message>', methods=['GET'])
-@test_peers()
-def account_main_return(message):
-	if request.remote_addr not in Banlist:
-		if len(message) > 50:
-			abort(403)
+	if time.time() - float(timestamp) < 40:
 		try:
 			con = sql.connect("info.db", check_same_thread=False)
 			con.row_factory = sql.Row
 			cur = con.cursor()
-			cur.execute('SELECT * FROM accounts WHERE identifier=?', (account_main,))
+			cur.execute('SELECT * FROM trusted_nodes WHERE identifier=?', (user,))
 			result = cur.fetchall()
-			public_key = result[0]["public_key_hex"]
-			private_key = result[0]["private_key_hex"]
-			signature = messages.sign_message(private_key,message)
-			return str(account_main + "," + public_key + "," + signature.encode("hex"))
-		except:
+			if len(result) == 0:
+				cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
+				result = cur.fetchall()
+				if len(result) == 1:
+					nonce = result[0]["proof_of_work"]
+					if nonce != None and nonce != "None":
+						word = generator.get()
+						proofofwork = generator.hashed(word)
+						time_generated = str(int(time.time()))
+						cur.execute('UPDATE fakeAccounts SET hash=? WHERE identifier=?', (proofofwork,user))
+						con.commit()
+						cur.execute('UPDATE fakeAccounts SET proof_of_work=? WHERE identifier=?', ("None",user))
+						con.commit()
+						cur.execute('UPDATE fakeAccounts SET proof_of_work_time=? WHERE identifier=?', (time_generated,user))
+						con.commit()
+					else:
+						time_generated = result[0]["time_generated"]
+						if time.time() - float(time_generated) < 25:
+							hashed = result[0]["hash"]
+							return hashed + "," + time_generated
+						else:
+							word = generator.get()
+							proofofwork = generator.hashed(word)
+							time_generated = str(int(time.time()))
+							cur.execute('UPDATE fakeAccounts SET hash=? WHERE identifier=?', (proofofwork,user))
+							con.commit()
+							cur.execute('UPDATE fakeAccounts SET proof_of_work_time=? WHERE identifier=?', (time_generated,user))
+							con.commit()
+					return proofofwork + "," + time_generated
+				else:
+					abort(403)
+			elif len(result) == 1:
+				return "None,None"
+			else:
+				return "Something went wrong."
+		except Exception as e:
+			print e
 			return "Something went wrong."
 		finally:
 			try:
@@ -499,9 +586,244 @@ def account_main_return(message):
 	else:
 		abort(403)
 
+@app.route('/encrypt/post/<user>/<public_key>/<timestamp>/<signature>', methods=['POST'])
+@limit_content_length(1 * 1024 * 1024)
+def encryption_post(user,public_key,timestamp,signature):
+	if request.remote_addr in Banlist:
+		abort(403)
+	if len(user) != 52:
+		abort(403)
+	testing_address = address.keyToAddr2(public_key,user)
+	if testing_address != user:
+		abort(403)
+	if testing_address in Banlist:
+		abort(403)
+	message = user + ":" + timestamp
+	prove_ownership = messages.verify_message(public_key, signature, message)
+	if prove_ownership == False:
+		abort(403)
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM fake_account')
+		result = cur.fetchall()
+		fakeAccount = result[0]["fakeidentifier"]
+		if fakeAccount == user:
+			return "OK"
+		cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
+		result = cur.fetchall()
+		found = False
+		if len(result) == 1:
+			found = True
+			time_generated = result[0]["time_generated"]
+			if time.time() - float(time_generated) < 1750:
+				abort(403)
+		elif len(result) > 1:
+			abort(403)
+		if time.time() - float(timestamp) < 10:
+			data = request.data
+			data = decrypt.decryptfromPubKey(data)
+			if data == False:
+				abort(403)
+			usersEncryptionKey = data
+			if found == True:
+				cur.execute('UPDATE fakeAccounts SET EncryptionKey=? AND time_generated=? WHERE identifier=?', (usersEncryptionKey,str(int(time.time())),user))
+				con.commit()
+			else:
+				cur.execute('INSERT INTO fakeAccounts (identifier,EncryptionKey,time_generated) VALUES (?,?,?)', (user,usersEncryptionKey,str(int(time.time()))))
+				con.commit()
+			return "OK"
+	except:
+		return "Something went wrong."
+	finally:
+		try:
+			con.close()
+		except:
+			pass
+
+@app.route('/data/new/<Identifier>/<public_key>/<timestamp>/<signature>/<hash>/<nonce>', methods=['POST'])
+@limit_content_length(4 * 1024 * 1024)
+@test_peers()
+def data_new(Identifier,public_key,timestamp,signature,hash,nonce):
+	if request.remote_addr in Banlist:
+		abort(403)
+	if len(Identifier) != 52:
+		abort(403)
+	testing_address = address.keyToAddr2(public_key,Identifier)
+	if testing_address != Identifier:
+		abort(403)
+	if testing_address in Banlist:
+		abort(403)
+	message = Identifier + ":" + timestamp
+	prove_ownership = messages.verify_message(public_key, signature, message)
+	if prove_ownership == False:
+		abort(403)
+	if time.time() - float(timestamp) < 40:
+		try:
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (Identifier,))
+			result = cur.fetchall()
+			if len(result) == 1:
+				payload = request.data
+				EncryptionKey = result[0]["EncryptionKey"]
+				cur.execute('SELECT * FROM trusted_nodes WHERE identifier=?', (Identifier,))
+				trusted = cur.fetchall()
+				if len(trusted) == 1:
+					payload = decrypt.decryptWithRSAKey(EncryptionKey,payload)
+					if payload != False:
+						result = memory_new(Identifier,payload)
+						if result == "Ban":
+							check_ban = requests.get("http://127.0.0.1:12995/check/ban/"+Identifier+"/"+request.remote_addr)
+							cur.execute('DELETE FROM trusted_nodes WHERE identifier=?', (Identifier,))
+							con.commit()
+							return "You have been banned! Bye!"
+						else:
+							return "Added"
+					else:
+						abort(403)
+				else:
+					Hash = result[0]["hash"]
+					if Hash != str(hash):
+						abort(403)
+					ProofOfWorkTime = result[0]["proof_of_work_time"]
+					if time.time() - float(ProofOfWorkTime) < 25 and time.time() - float(ProofOfWorkTime) > 5:
+						result = proof_of_work.verify(hash,nonce)
+						if result == False:
+							abort(403)
+						cur.execute('UPDATE fakeAccounts SET proof_of_work=? WHERE identifier=?',(nonce,Identifier))
+						con.commit()
+						payload = decrypt.decryptWithRSAKey(EncryptionKey,payload)
+						if payload != False:
+							result = memory_new(Identifier,payload)
+							if result == "Ban":
+								check_ban = requests.get("http://127.0.0.1:12995/check/ban/"+Identifier+"/"+request.remote_addr)
+								return "You have been banned! Bye!"
+							else:
+								return "Added"
+						else:
+							abort(403)
+					else:
+						abort(403)
+			else:
+				abort(403)
+		except:
+			return "Something went wrong!"
+		finally:
+			try:
+				con.close()
+			except:
+				pass
+	else:
+		abort(403)
+
+@app.route('/tx/new', methods=['POST'])
+def my_transactions_add():
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
+		data = request.data
+		if data not in my_transactions:
+			my_transactions.append(data)
+		return "Done"
+	else:
+		abort(403)
+
+@app.route('/tx/<tx>', methods=['GET'])
+def check_transaction(tx):
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
+		found = False
+		for transaction in my_transactions:
+			details = transaction.split(",")
+			tx_hash = details[0]
+			if tx_hash == tx:
+				found = True
+				break
+		return str(found)
+	else:
+		abort(403)
+
+@app.route('/get/nodes', methods=['GET'])
+def get_nodes():
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
+		result = ','.join(nodes)
+		return result
+	else:
+		abort(403)
+
+@app.route('/memory/search/<user>/<public_key>/<timestamp>/<signature>/<Identifier>/<Identifier_public_key>/<Identifier_signature>', methods=['GET'])
+@test_peers()
+def memory_search_user(user,public_key,timestamp,signature,Identifier,Identifier_public_key,Identifier_signature):
+	final = "None"
+	if request.remote_addr in Banlist:
+		abort(403)
+	testing_address = address.keyToAddr2(public_key,user)
+	if testing_address != user:
+		abort(403)
+	if testing_address in Banlist:
+		abort(403)
+	message = user + ":" + timestamp
+	prove_ownership = messages.verify_message(public_key,signature,message)
+	if prove_ownership == False:
+		abort(403)
+	if time.time() - float(timestamp) < 10:
+		try:
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
+			result = cur.fetchall()
+			if len(result) == 1:
+				EncryptionKey = result[0]["EncryptionKey"]
+				Identifier = decrypt.decryptWithRSAKey(EncryptionKey,Identifier)
+				if Identifier == False:
+					abort(403)
+				Identifier_signature = decrypt.decryptWithRSAKey(EncryptionKey,Identifier_signature)
+				if Identifier_signature == False:
+					abort(403)
+				Identifier_public_key = decrypt.decryptWithRSAKey(EncryptionKey,Identifier_public_key)
+				if Identifier_public_key == False:
+					abort(403)
+				testing_address = address.keyToAddr(Identifier_public_key,Identifier)
+				if testing_address != Identifier:
+					abort(403)
+				if testing_address in Banlist:
+					abort(403)
+				message = Identifier + ":" + timestamp
+				prove_ownership = messages.verify_message(Identifier_public_key,Identifier_signature,message)
+				if prove_ownership == False:
+					abort(403)
+				last_logs(Identifier)
+				found = False
+				for data_in_pool in memory_pool:
+					details = data_in_pool.split(",")
+					operation = details[0]
+					receiver = details[2]
+					additional1 = details[4]
+					TX_hash = details[8]
+					if receiver == Identifier and operation != "OSP":
+						final = data_in_pool
+						memory_pool.remove(data_in_pool)
+						found = True
+						break
+				if found == True:
+					final = encrypt.encryptWithRSAKey(EncryptionKey,final)
+				return final
+			else:
+				abort(403)
+		except:
+			return "Something went wrong!"
+		finally:
+			try:
+				con.close()
+			except:
+				pass
+	
+	return final
+
 @app.route('/dApps/data/<operation>/receiver/<receiver>', methods=['GET'])
 def dApps_operation_receiver(operation,receiver):
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		result = "None"
 		for dAppData in dAppsData:
 			dAppData_details = dAppData.split(",")
@@ -517,7 +839,7 @@ def dApps_operation_receiver(operation,receiver):
 
 @app.route('/dApps/data/<operation>/receiver/<receiver>/suboperation/<suboperation>', methods=['GET'])
 def dApps_operation_receiver_suboperation(operation,receiver,suboperation):
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		result = "None"
 		for dAppData in dAppsData:
 			dAppData_details = dAppData.split(",")
@@ -534,7 +856,7 @@ def dApps_operation_receiver_suboperation(operation,receiver,suboperation):
 
 @app.route('/dApps/data/<operation>/sender/<sender>', methods=['GET'])
 def dApps_data_operation_sender(operation,sender):
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		result = "None"
 		for dAppData in dAppsData:
 			dAppData_details = dAppData.split(",")
@@ -550,7 +872,7 @@ def dApps_data_operation_sender(operation,sender):
 
 @app.route('/dApps/data/<operation>/sender/<sender>/suboperation/<suboperation>', methods=['GET'])
 def dApps_data_operation_sender_suboperation(operation,sender,suboperation):
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		result = "None"
 		for dAppData in dAppsData:
 			dAppData_details = dAppData.split(",")
@@ -623,6 +945,8 @@ def users_online():
 
 @app.route('/user/<user>', methods=['GET'])
 def user_get(user):
+	if request.remote_addr in Banlist:
+		abort(403)
 	if len(user) < 36 or len(user) > 50:
 		abort(403)
 	result = "None"
@@ -637,7 +961,7 @@ def user_get(user):
 
 @app.route('/<account>/private_keys', methods=['GET'])
 def account_private_keys(account):
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		if len(account) >= 36 and len(account) <= 50:
 			abort(403)
 		try:
@@ -669,33 +993,30 @@ def account_private_keys(account):
 
 @app.route('/user/<user>/public_key', methods=['GET'])
 def user_get_public_key(user):
-	if request.remote_addr == "127.0.0.1":
-		if len(user) >= 36 and len(user) <= 50:
-			abort(403)
+	if len(user) >= 36 and len(user) <= 50:
+		abort(403)
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM users WHERE identifier=?', (user,))
+		result = cur.fetchall()
+		if len(result) == 1:
+			public_key = result[0]["public_key"]
+		else:
+			return "None"
+	except:
+		pass
+	finally:
 		try:
-			con = sql.connect("info.db", check_same_thread=False)
-			con.row_factory = sql.Row
-			cur = con.cursor()
-			cur.execute('SELECT * FROM users WHERE identifier=?', (user,))
-			result = cur.fetchall()
-			if len(result) == 1:
-				public_key = result[0]["public_key"]
-			else:
-				return "None"
+			con.close()
 		except:
 			pass
-		finally:
-			try:
-				con.close()
-			except:
-				pass
-		return "None"
-	else:
-		abort(403)
+	return "None"
 
 @app.route('/dApps/new', methods=['POST'])
 def dApps_new():
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		payload = request.data
 		payload_details = payload.split(",")
 		operation = payload_details[0]
@@ -714,7 +1035,7 @@ def dApps_new():
 
 @app.route('/ban/new', methods=['POST'])
 def ban_new():
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		try:
 			con = sql.connect("info.db", check_same_thread=False)
 			con.row_factory = sql.Row
@@ -740,7 +1061,7 @@ def ban_new():
 
 @app.route('/check/ban/<identifier>/<peer>', methods=['GET'])
 def check_ban(identifier,peer):
-	if request.remote_addr == "127.0.0.1":
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		try:
 			con = sql.connect("info.db", check_same_thread=False)
 			con.row_factory = sql.Row
@@ -787,6 +1108,8 @@ def memory_new(identifier,payload):
 				return "Added"
 		except:
 			return "Error"
+	elif result == "Received":
+		return "Received"
 	else:
 		ban_post = requests.post("http://127.0.0.1:12995/ban/new", data=identifier)
 		return "Ban"
@@ -796,26 +1119,51 @@ def ask_memory(account,peer):
 		con = sql.connect("info.db", check_same_thread=False)
 		con.row_factory = sql.Row
 		cur = con.cursor()
+		cur.execute('SELECT * FROM peers WHERE peer=?', (peer,))
+		result = cur.fetchall()
+		if len(result) == 1:
+			user = result[0]["identifier"]
+			cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
+			result = cur.fetchall()
+			if len(result) == 1:
+				usersEncryptionKey = result[0]["usersEncryptionKey"]
+				ourEncryptionKey = result[0]["ourEncryptionKey"]
+			else:
+				return
+		else:
+			return
+		cur.execute('SELECT * FROM fake_account')
+		accounts = cur.fetchall()
+		Account = accounts[0]["fakeidentifier"]
+		fake_private_key_hex = accounts[0]["fake_private_key_hex"]
+		fake_public_key_hex = accounts[0]["fake_public_key_hex"]
+		fake_Address = address.keyToAddr2(fake_public_key_hex, Account)
+		timestamp = str(int(time.time()))
+		signature = messages.sign_message(fake_private_key_hex, fake_Address+":"+timestamp)
+		fake_signature = signature.encode("hex")
 		cur.execute('SELECT * FROM accounts WHERE identifier=?', (account,))
 		accounts = cur.fetchall()
 		private_key_hex = accounts[0]["private_key_hex"]
 		public_key_hex = accounts[0]["public_key_hex"]
-		Address = address.keyToAddr(public_key_hex)
-		return_data = requests.get("http://"+peer+":12995/account/main/"+Address)
-		return_data = return_data.content
-		return_data_details = return_data.split(",")
-		Identifier = return_data_details[0]
-		Public_key = return_data_details[1]
-		Signature = return_data_details[2]
-		prove_ownership = messages.verify_message(Public_key,Signature,Address)
-		if prove_ownership == False:
-			return
-		timestamp = str(int(time.time()))
-		signature = messages.sign_message(private_key_hex, Address+":"+timestamp)
+		signature = messages.sign_message(private_key_hex, account+":"+timestamp)
 		signature = signature.encode("hex")
-		return_data = requests.get("http://"+peer+":12995/memory/search/"+Address+"/"+public_key_hex+"/"+timestamp+"/"+signature)
+		account = encrypt.encryptWithRSAKey(usersEncryptionKey,account)
+		public_key_hex = encrypt.encryptWithRSAKey(usersEncryptionKey,public_key_hex)
+		signature = encrypt.encryptWithRSAKey(usersEncryptionKey,signature)
+		if account == False or public_key_hex == False or signature == False:
+			return
+		ip_result = whatis(peer)
+		if ip_result == False:
+			return
+		if ip_result == "4":
+			return_data = requests.get("http://"+peer+":12995/memory/search/"+Account+"/"+fake_public_key_hex+"/"+timestamp+"/"+fake_signature+"/"+account+"/"+public_key_hex+"/"+signature)
+		else:
+			return_data = requests.get("http://["+peer+"]:12995/memory/search/"+Account+"/"+fake_public_key_hex+"/"+timestamp+"/"+fake_signature+"/"+account+"/"+public_key_hex+"/"+signature)
 		if return_data.content != "None" and return_data.status_code == 200:
-			memory_new(Identifier,return_data.content)
+			payload = decrypt.decryptWithRSAKey(ourEncryptionKey,return_data.content)
+			if payload == False:
+				return
+			memory_new(user,payload)
 			print time.strftime("%d/%m/%Y %H:%M:%S", time.gmtime()) + " ["+account+"] <- received data from " + peer
 	except:
 		pass
@@ -828,8 +1176,8 @@ def ask_memory(account,peer):
 def app_server():
 	try:
 		print "[!] Trying to start Flask server"
-		print "	[+] Flask server started: http://127.0.0.1:12995/"
-		app.run(host='0.0.0.0', port=12995, threaded=True)
+		print "	[+] Flask server started!"
+		app.run(host='::', port=12995, threaded=True)
 	except (Exception,KeyboardInterrupt):
 		pass
 	
@@ -849,7 +1197,7 @@ def get_other_nodes():
 			connection_details = connection.split(",")
 			account = connection_details[0]
 			peer = connection_details[1]
-			other_nodes.get(account,peer)
+			other_nodes.get(peer)
 	except (Exception,KeyboardInterrupt):
 		pass
 	
@@ -1022,7 +1370,6 @@ def daemon():
 	Last_online = 0
 	Last_search = 0
 	Last_peers_check = 0
-	last_get_users_check = 0
 	while True:
 
 		try:
@@ -1048,6 +1395,28 @@ def daemon():
 			pass
 
 		try:
+			cur.execute('SELECT * FROM encryption_key')
+			results = cur.fetchall()
+			if len(results) == 1:
+				checks = 0
+				while checks < len(results):
+					time_now = time.time()
+					timestamp = results[checks]["time_generated"]
+					if time_now - float(timestamp) > 1800 and time_now - float(timestamp) < 1900:
+						private_key_generated,public_key_generated = keys.generate_encryption_key()
+						cur.execute('INSERT INTO encryption_key (public_key,private_key,time_generated) VALUES (?,?,?)', (public_key_generated,private_key_generated,str(int(time.time()))))
+						con.commit()
+						cur.execute('DELETE FROM encryption_key WHERE time_generated=?', (timestamp,))
+						con.commit()
+					checks += 1
+			else:
+				private_key_generated,public_key_generated = keys.generate_encryption_key()
+				cur.execute('INSERT INTO encryption_key (public_key,private_key,time_generated) VALUES (?,?,?)', (public_key_generated,private_key_generated,str(int(time.time()))))
+				con.commit()
+		except:
+			pass
+
+		try:
 			cur.execute('SELECT * FROM test_peers')
 			results = cur.fetchall()
 			for result in results:
@@ -1055,7 +1424,7 @@ def daemon():
 				cur.execute('SELECT * FROM peers WHERE peer=?', (peer,))
 				result = cur.fetchall()
 				if len(result) == 0:
-					identifier.get(account_main,peer)
+					identifier.get(peer)
 				cur.execute('DELETE FROM test_peers WHERE peer=?', (peer,))
 				con.commit()
 		except:
@@ -1067,12 +1436,12 @@ def daemon():
 				results = cur.fetchall()
 				for result in results:
 					peer = result["peer"]
-					identifier.get(account_main,peer)
+					identifier.get(peer)
 				for node in nodes:
 					cur.execute('SELECT * FROM peers WHERE peer=?', (node,))
 					result = cur.fetchall()
 					if len(result) == 0:
-						identifier.get(account_main,node)
+						identifier.get(node)
 				Last_peers_check = time.time()
 			except:
 				pass
@@ -1110,25 +1479,6 @@ def daemon():
 						con.commit()
 		except:
 			pass
-
-		if time.time() - last_get_users_check > 300:
-			try:
-				for get_user in get_users:
-					for connection in connections:
-						connection_details = connection.split(",")
-						account = connection_details[0]
-						peer = connection_details[1]
-						try:
-							Identifier,returned_data = user.get(account,peer,get_user)
-							if Identifier != False and returned_data != False:
-								result = memory_new(Identifier,returned_data)
-								if result == "Added":
-									break
-						except:
-							pass
-				last_get_users_check = time.time()	
-			except:
-				pass
 		
 		try:
 			for account in accounts:
@@ -1215,7 +1565,7 @@ def daemon():
 							cur.execute('SELECT * FROM last_posts WHERE tx_hash=? AND peer=?', (tx_hash,peer))
 							result = cur.fetchall()
 							if len(result) == 0:
-								new_data.new_data(account,peer,data_to_post)
+								new_data.new_data(peer,data_to_post)
 								cur.execute('INSERT INTO last_posts (peer,tx_hash,time) VALUES (?,?,?)', (peer,tx_hash,str(time.time())))
 								con.commit()
 						my_data.remove(data_to_post)
