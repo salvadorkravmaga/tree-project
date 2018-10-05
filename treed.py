@@ -575,8 +575,7 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 				return "None,None"
 			else:
 				return "Something went wrong."
-		except Exception as e:
-			print e
+		except:
 			return "Something went wrong."
 		finally:
 			try:
@@ -628,7 +627,9 @@ def encryption_post(user,public_key,timestamp,signature):
 				abort(403)
 			usersEncryptionKey = data
 			if found == True:
-				cur.execute('UPDATE fakeAccounts SET EncryptionKey=? AND time_generated=? WHERE identifier=?', (usersEncryptionKey,str(int(time.time())),user))
+				cur.execute('UPDATE fakeAccounts SET EncryptionKey=? WHERE identifier=?', (usersEncryptionKey,user))
+				con.commit()
+				cur.execute('UPDATE fakeAccounts SET time_generated=? WHERE identifier=?', (str(int(time.time())),user))
 				con.commit()
 			else:
 				cur.execute('INSERT INTO fakeAccounts (identifier,EncryptionKey,time_generated) VALUES (?,?,?)', (user,usersEncryptionKey,str(int(time.time()))))
