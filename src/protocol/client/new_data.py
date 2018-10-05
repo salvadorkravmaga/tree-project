@@ -49,7 +49,7 @@ def new_data(peer,payload):
 			cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (fakeIdentifier,))
 			result = cur.fetchall()
 			if len(result) == 1:
-				usersEncryptionKey = result[0]["usersEncryptionKey"]
+				usersEncryptionKey = result[0]["EncryptionKey"]
 			else:
 				return
 		else:
