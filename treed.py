@@ -730,6 +730,16 @@ def my_transactions_add():
 	else:
 		abort(403)
 
+@app.route('/data/pool/new', methods=['POST'])
+def data_pool_new():
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
+		data = request.data
+		if data not in my_data:
+			my_data.append(data)
+		return "Done"
+	else:
+		abort(403)
+
 @app.route('/tx/<tx>', methods=['GET'])
 def check_transaction(tx):
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
