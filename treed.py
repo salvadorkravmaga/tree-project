@@ -776,13 +776,13 @@ def memory_search_user(user,public_key,timestamp,signature,Identifier,Identifier
 			result = cur.fetchall()
 			if len(result) == 1:
 				EncryptionKey = result[0]["EncryptionKey"]
-				Identifier = decrypt.decryptWithRSAKey(EncryptionKey,Identifier)
+				Identifier = decrypt.decryptWithRSAKey(EncryptionKey,str(Identifier))
 				if Identifier == False:
 					abort(403)
-				Identifier_signature = decrypt.decryptWithRSAKey(EncryptionKey,Identifier_signature)
+				Identifier_signature = decrypt.decryptWithRSAKey(EncryptionKey,str(Identifier_signature))
 				if Identifier_signature == False:
 					abort(403)
-				Identifier_public_key = decrypt.decryptWithRSAKey(EncryptionKey,Identifier_public_key)
+				Identifier_public_key = decrypt.decryptWithRSAKey(EncryptionKey,str(Identifier_public_key))
 				if Identifier_public_key == False:
 					abort(403)
 				testing_address = address.keyToAddr(Identifier_public_key,Identifier)
@@ -1127,8 +1127,7 @@ def ask_memory(account,peer):
 			cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
 			result = cur.fetchall()
 			if len(result) == 1:
-				usersEncryptionKey = result[0]["usersEncryptionKey"]
-				ourEncryptionKey = result[0]["ourEncryptionKey"]
+				EncryptionKey = result[0]["EncryptionKey"]
 			else:
 				return
 		else:
@@ -1148,9 +1147,9 @@ def ask_memory(account,peer):
 		public_key_hex = accounts[0]["public_key_hex"]
 		signature = messages.sign_message(private_key_hex, account+":"+timestamp)
 		signature = signature.encode("hex")
-		account = encrypt.encryptWithRSAKey(usersEncryptionKey,account)
-		public_key_hex = encrypt.encryptWithRSAKey(usersEncryptionKey,public_key_hex)
-		signature = encrypt.encryptWithRSAKey(usersEncryptionKey,signature)
+		account = encrypt.encryptWithRSAKey(EncryptionKey,account)
+		public_key_hex = encrypt.encryptWithRSAKey(EncryptionKey,public_key_hex)
+		signature = encrypt.encryptWithRSAKey(EncryptionKey,signature)
 		if account == False or public_key_hex == False or signature == False:
 			return
 		ip_result = whatis(peer)
@@ -1161,7 +1160,7 @@ def ask_memory(account,peer):
 		else:
 			return_data = requests.get("http://["+peer+"]:12995/memory/search/"+Account+"/"+fake_public_key_hex+"/"+timestamp+"/"+fake_signature+"/"+account+"/"+public_key_hex+"/"+signature)
 		if return_data.content != "None" and return_data.status_code == 200:
-			payload = decrypt.decryptWithRSAKey(ourEncryptionKey,return_data.content)
+			payload = decrypt.decryptWithRSAKey(EncryptionKey,return_data.content)
 			if payload == False:
 				return
 			memory_new(user,payload)
@@ -1184,11 +1183,9 @@ def app_server():
 	
 def send_online_status():
 	try:
-		for connection in connections:
-			connection_details = connection.split(",")
-			account = connection_details[0]
-			peer = connection_details[1]
-			online_status.online_status(account,peer)
+		global accounts
+		for account in accounts:
+			online_status.online_status(account)
 	except (Exception,KeyboardInterrupt):
 		pass
 				
