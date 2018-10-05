@@ -45,7 +45,9 @@ def get_encryption(Identifier,peer,user,privkey,pubkey,ip):
 				cur.execute('INSERT INTO fakeAccounts (identifier,EncryptionKey,time_generated) VALUES (?,?,?)', (Identifier,ourEncryptionKey,timestamp))
 				con.commit()
 			else:
-				cur.execute('UPDATE fakeAccounts SET EncryptionKey=? AND time_generated=? WHERE identifier=?', (ourEncryptionKey,timestamp, Identifier))
+				cur.execute('UPDATE fakeAccounts SET EncryptionKey=? WHERE identifier=?', (ourEncryptionKey,Identifier))
+				con.commit()
+				cur.execute('UPDATE fakeAccounts SET time_generated=? WHERE identifier=?', (timestamp, Identifier))
 				con.commit()
 		except:
 			return
