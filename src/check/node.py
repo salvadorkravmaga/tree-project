@@ -10,14 +10,6 @@ import sys
 import StringIO
 import contextlib
 
-try:
-	config = ConfigParser.RawConfigParser()
-	config.read("treec")
-	dapps = config.get('Configuration', 'dApps')
-	dapps_details = dapps.split(",")
-except:
-	pass
-
 def check_ban(identifier):
 	try:
 		con = sql.connect("info.db")
@@ -105,7 +97,8 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 				return False
 		else:
 			return False
-	except:
+	except Exception as e:
+		print e
 		pass
 	finally:
 		try:
@@ -117,6 +110,14 @@ def constructor(payload):
 	result = False
 	details = payload.split(",")
 	operation = details[0]
+	receiver = details[2]
+	try:
+		config = ConfigParser.RawConfigParser()
+		config.read("treec")
+		dapps = config.get(receiver, 'dApps')
+		dapps_details = dapps.split(",")
+	except:
+		pass
 	additional1 = details[4]
 	additional2 = details[5]
         additional3 = details[6]
@@ -132,13 +133,11 @@ def constructor(payload):
 		except:
 			get_tx_status_tries += 1
 			time.sleep(2)
-	if operation in dapps_details:
+	if operation in dapps_details or operation == "OSP":
 		sender = details[1]
 		test_ban = check_ban(sender)
 		if test_ban == "True":
 			return result
-		receiver = details[2]
-		receiver = receiver[0:]
 		timestamp = details[3]
 		data = details[7]
 		signature = details[9]
