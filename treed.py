@@ -1004,7 +1004,7 @@ def account_private_keys(account):
 
 @app.route('/user/<user>/public_key', methods=['GET'])
 def user_get_public_key(user):
-	if len(user) >= 36 and len(user) <= 50:
+	if len(user) < 36 and len(user) > 50:
 		abort(403)
 	try:
 		con = sql.connect("info.db", check_same_thread=False)
