@@ -1004,7 +1004,7 @@ def account_private_keys(account):
 
 @app.route('/user/<user>/public_key', methods=['GET'])
 def user_get_public_key(user):
-	if len(user) < 36 and len(user) > 50:
+	if len(user) < 36 or len(user) > 50:
 		abort(403)
 	try:
 		con = sql.connect("info.db", check_same_thread=False)
@@ -1185,9 +1185,14 @@ def ask_memory(account,peer):
 
 def app_server():
 	try:
+		import platform
+		machine = platform.system()
 		print "[!] Trying to start Flask server"
 		print "	[+] Flask server started!"
-		app.run(host='::', port=12995, threaded=True)
+		if machine == "Linux" or machine == "Darwin":
+			app.run(host='::', port=12995, threaded=True)
+		else:
+			app.run(host='127.0.0.1', port=12995, threaded=True)
 	except (Exception,KeyboardInterrupt):
 		pass
 	
