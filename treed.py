@@ -438,6 +438,7 @@ def memory_pool_new():
 								memory_pool.append(payload)
 								memory_pool.remove(data_in_pool)
 							requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
+							my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=tx_hash)
 							return "Data added to the pool."
 						else:
 							return "Done"
@@ -449,6 +450,7 @@ def memory_pool_new():
 						if payload not in memory_pool:
 							memory_pool.append(payload)
 						requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
+						my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=tx_hash)
 						return "Data added to the pool."
 					else:
 						return "Done"
@@ -463,6 +465,7 @@ def memory_pool_new():
 							memory_pool.append(payload)
 					else:
 						requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
+				my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=tx_hash)
 				return "Data added to the pool"
 		except:
 			return "Something went wrong."
@@ -549,11 +552,7 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 						word = generator.get()
 						proofofwork = generator.hashed(word)
 						time_generated = str(int(time.time()))
-						cur.execute('UPDATE fakeAccounts SET hash=? WHERE identifier=?', (proofofwork,user))
-						con.commit()
-						cur.execute('UPDATE fakeAccounts SET proof_of_work=? WHERE identifier=?', ("None",user))
-						con.commit()
-						cur.execute('UPDATE fakeAccounts SET proof_of_work_time=? WHERE identifier=?', (time_generated,user))
+						cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work=?, proof_of_work_time=? WHERE identifier=?', (proofofwork,"None",time_generated,user))
 						con.commit()
 					else:
 						time_generated = result[0]["time_generated"]
@@ -564,9 +563,7 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 							word = generator.get()
 							proofofwork = generator.hashed(word)
 							time_generated = str(int(time.time()))
-							cur.execute('UPDATE fakeAccounts SET hash=? WHERE identifier=?', (proofofwork,user))
-							con.commit()
-							cur.execute('UPDATE fakeAccounts SET proof_of_work_time=? WHERE identifier=?', (time_generated,user))
+							cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work_time=? WHERE identifier=?', (proofofwork,time_generated,user))
 							con.commit()
 					return proofofwork + "," + time_generated
 				else:
@@ -627,9 +624,7 @@ def encryption_post(user,public_key,timestamp,signature):
 				abort(403)
 			usersEncryptionKey = data
 			if found == True:
-				cur.execute('UPDATE fakeAccounts SET EncryptionKey=? WHERE identifier=?', (usersEncryptionKey,user))
-				con.commit()
-				cur.execute('UPDATE fakeAccounts SET time_generated=? WHERE identifier=?', (str(int(time.time())),user))
+				cur.execute('UPDATE fakeAccounts SET EncryptionKey=?, time_generated=? WHERE identifier=?', (usersEncryptionKey,str(int(time.time())),user))
 				con.commit()
 			else:
 				cur.execute('INSERT INTO fakeAccounts (identifier,EncryptionKey,time_generated) VALUES (?,?,?)', (user,usersEncryptionKey,str(int(time.time()))))
