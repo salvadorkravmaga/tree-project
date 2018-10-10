@@ -97,8 +97,7 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 				return False
 		else:
 			return False
-	except Exception as e:
-		print e
+	except:
 		pass
 	finally:
 		try:
@@ -117,7 +116,7 @@ def constructor(payload):
 		dapps = config.get(receiver, 'dApps')
 		dapps_details = dapps.split(",")
 	except:
-		pass
+		return
 	additional1 = details[4]
 	additional2 = details[5]
         additional3 = details[6]
