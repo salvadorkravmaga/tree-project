@@ -1009,6 +1009,7 @@ def user_get_public_key(user):
 		result = cur.fetchall()
 		if len(result) == 1:
 			public_key = result[0]["public_key"]
+			return public_key
 		else:
 			return "None"
 	except:
