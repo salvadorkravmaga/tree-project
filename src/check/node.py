@@ -110,13 +110,16 @@ def constructor(payload):
 	details = payload.split(",")
 	operation = details[0]
 	receiver = details[2]
-	try:
-		config = ConfigParser.RawConfigParser()
-		config.read("treec")
-		dapps = config.get(receiver, 'dApps')
-		dapps_details = dapps.split(",")
-	except:
-		return
+	if operation != "OSP":
+		try:
+			config = ConfigParser.RawConfigParser()
+			config.read("treec")
+			dapps = config.get(receiver, 'dApps')
+			dapps_details = dapps.split(",")
+		except:
+			return
+	else:
+		dapps_details = []
 	additional1 = details[4]
 	additional2 = details[5]
         additional3 = details[6]
