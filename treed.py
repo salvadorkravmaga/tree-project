@@ -1563,19 +1563,22 @@ def daemon():
 
 		try:
 			if len(my_data) > 0:
+				peers_to_post = []
+				for connection in PostTo:
+					connection_details = connection.split(",")
+					peer = connection_details[1]
+					if peer not in peers_to_post:
+						peers_to_post.append(peer)
 				for data_to_post in my_data:
 					if len(PostTo) > 0:
-						for connection in PostTo:
+						for peer in peers_to_post:
 							data_to_post_details = data_to_post.split(",")
 							tx_hash = data_to_post_details[8]
-							connection_details = connection.split(",")
-							account = connection_details[0]
-							peer = connection_details[1]
 							cur.execute('SELECT * FROM last_posts WHERE tx_hash=? AND peer=?', (tx_hash,peer))
 							result = cur.fetchall()
 							if len(result) == 0:
 								new_data.new_data(peer,data_to_post)
-								cur.execute('INSERT INTO last_posts (peer,tx_hash,time) VALUES (?,?,?)', (peer,tx_hash,str(time.time())))
+								cur.execute('INSERT INTO last_posts (peer,tx_hash,time) VALUES (?,?,?)', (peer,tx_hash,str(int(time.time()))))
 								con.commit()
 						my_data.remove(data_to_post)
 		except:
