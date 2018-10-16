@@ -40,7 +40,6 @@ my_data = []
 dAppsData = []
 my_transactions = []
 Banlist = []
-processes = {}
 
 path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 config = ConfigParser.RawConfigParser()
@@ -960,7 +959,7 @@ def user_get(user):
 		data_in_pool_details = data_in_pool.split(",")
 		operation = data_in_pool_details[0]
 		sender = data_in_pool_details[1]
-		if user == sender:
+		if operation == "OSP" and user == sender:
 			result = data_in_pool
 			break
 	return result
