@@ -25,6 +25,7 @@ def help():
 	print "-importfake	Imports fake private key"
 	print "-exportfake	Exports fake private key"
 	print "-deleteaccount	Deletes a specific account"
+	print "-deletefake	Deletes a fake account"
 	print "-clean		Deletes all accounts and encryption keys"
 
 def status():
@@ -62,8 +63,16 @@ def whoami():
 		cur.execute('SELECT * FROM accounts')
 		results = cur.fetchall()
 		for account in results:
+			Address = account["identifier"]
 			public_key_hex = account["public_key_hex"]
-			Accountaddress = address.keyToAddr(public_key_hex)
+			Accountaddress = address.keyToAddr(public_key_hex,Address)
+			print "[+] " + Accountaddress
+		cur.execute('SELECT * FROM fake_account')
+		results = cur.fetchall()
+		for account in results:
+			Address = account["fakeidentifier"]
+			public_key_hex = account["fake_public_key_hex"]
+			Accountaddress = address.keyToAddr2(public_key_hex,Address)
 			print "[+] " + Accountaddress
 	except Exception as e:
 		print e
@@ -169,9 +178,21 @@ def deleteaccount():
 		print e
 	con.close()
 
+def deletefake():
+	account = raw_input("Account to delete: ")
+	try:
+		cur.execute('DELETE FROM fake_account WHERE fakeidentifier=?', (account,))
+		con.commit()
+		print "[+] Account " + account + " deleted"
+	except Exception as e:
+		print e
+	con.close()
+
 def clean():
 	try:
 		cur.execute('DELETE FROM accounts')
+		con.commit()
+		cur.execute('DELETE FROM fake_account')
 		con.commit()
 		cur.execute('DELETE FROM keys')
 		con.commit()
@@ -202,6 +223,8 @@ def main(arguments):
 			exportfake()
 		elif "-deleteaccount" in arguments:
 			deleteaccount()
+		elif "-deletefake" in arguments:
+			deletefake()
 		elif "-clean" in arguments:
 			clean()
 		else:
