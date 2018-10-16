@@ -20,8 +20,7 @@ def encryptwithPubKey(publicKey,text):
 		encb64 = encodestring(enc)
 		encb64 = encb64.replace("\n","")
 		return encb64
-	except Exception as e:
-		print e
+	except:
 		return False
 
 def encryptWithRSAKey(key, msg):
