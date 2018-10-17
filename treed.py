@@ -1591,7 +1591,7 @@ def daemon():
 			connected_nodes()
 			get_other_nodes()
 			Last_check = time.time()
-		if time.time() - Last_online > 600:
+		if time.time() - Last_online > 480:
 			send_online_status()
 			Last_online = time.time()
 		if time.time() - Last_search > 2:
