@@ -430,7 +430,7 @@ def memory_pool_new():
 					Receiver = Payload_details[2]
 					Time_added = Payload_details[3]
 					TX_HASH = Payload_details[8]
-					if operation == Operation and sender == Sender and receiver == Receiver and float(time_added) - float(Time_added) >= 600:
+					if operation == Operation and sender == Sender and receiver == Receiver and float(time_added) - float(Time_added) >= 480:
 						result = node.constructor(payload)
 						if result == True:
 							if payload not in memory_pool:
@@ -1336,7 +1336,7 @@ def daemon_data():
 					details = data_in_pool.split(",")
 					time_added = details[3]
 					time_now = time.time()
-					if time_now - float(time_added) > 600:
+					if time_now - float(time_added) > 720:
 						memory_pool.remove(data_in_pool)
 		except:
 			pass
