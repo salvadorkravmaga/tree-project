@@ -37,7 +37,6 @@ GetFromSettings = {}
 PostToSettings = {}
 PostTo = []
 my_data = []
-dAppsData = []
 my_transactions = []
 Banlist = []
 
@@ -430,7 +429,7 @@ def memory_pool_new():
 					Receiver = Payload_details[2]
 					Time_added = Payload_details[3]
 					TX_HASH = Payload_details[8]
-					if operation == Operation and sender == Sender and receiver == Receiver and float(time_added) - float(Time_added) >= 480:
+					if operation == Operation and sender == Sender and receiver == Receiver and float(time_added) - float(Time_added) >= 300:
 						result = node.constructor(payload)
 						if result == True:
 							if payload not in memory_pool:
@@ -718,8 +717,15 @@ def data_new(Identifier,public_key,timestamp,signature,hash,nonce):
 def my_transactions_add():
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		data = request.data
-		if data not in my_transactions:
-			my_transactions.append(data)
+		found = False
+		for my_transaction in my_transactions:
+			my_transaction_details = my_transaction.split(",")
+			tx_hash = my_transaction_details[0]
+			if data == tx_hash:
+				found = True
+				break
+		if found == False:
+			my_transactions.append(data+","+str(int(time.time())))
 		return "Done"
 	else:
 		abort(403)
@@ -826,72 +832,6 @@ def memory_search_user(user,public_key,timestamp,signature,Identifier,Identifier
 	
 	return final
 
-@app.route('/dApps/data/<operation>/receiver/<receiver>', methods=['GET'])
-def dApps_operation_receiver(operation,receiver):
-	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		result = "None"
-		for dAppData in dAppsData:
-			dAppData_details = dAppData.split(",")
-			Operation = dAppData_details[0]
-			Receiver = dAppData_details[2]
-			if Operation == operation and Receiver == receiver:
-				result = dAppData
-				dAppsData.remove(dAppData)
-				break
-		return str(result)
-	else:
-		abort(403)
-
-@app.route('/dApps/data/<operation>/receiver/<receiver>/suboperation/<suboperation>', methods=['GET'])
-def dApps_operation_receiver_suboperation(operation,receiver,suboperation):
-	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		result = "None"
-		for dAppData in dAppsData:
-			dAppData_details = dAppData.split(",")
-			Operation = dAppData_details[0]
-			Receiver = dAppData_details[2]
-			Additional1 = dAppData_details[4]
-			if Operation == operation and Receiver == receiver and Additional1 == suboperation:
-				result = dAppData
-				dAppsData.remove(dAppData)
-				break
-		return str(result)
-	else:
-		abort(403)
-
-@app.route('/dApps/data/<operation>/sender/<sender>', methods=['GET'])
-def dApps_data_operation_sender(operation,sender):
-	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		result = "None"
-		for dAppData in dAppsData:
-			dAppData_details = dAppData.split(",")
-			Operation = dAppData_details[0]
-			Sender = dAppData_details[1]
-			if Operation == operation and Sender == sender:
-				result = dAppData
-				dAppsData.remove(dAppData)
-				break
-		return str(result)
-	else:
-		abort(403)
-
-@app.route('/dApps/data/<operation>/sender/<sender>/suboperation/<suboperation>', methods=['GET'])
-def dApps_data_operation_sender_suboperation(operation,sender,suboperation):
-	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		result = "None"
-		for dAppData in dAppsData:
-			dAppData_details = dAppData.split(",")
-			Operation = dAppData_details[0]
-			Sender = dAppData_details[1]
-			Additional1 = dAppData_details[4]
-			if Operation == operation and Sender == sender and Additional1 == suboperation:
-				result = dAppData
-				dAppsData.remove(dAppData)
-				break
-		return str(result)
-	else:
-		abort(403)
-
 @app.route('/nodes/total', methods=['GET'])
 def nodes_total():
 	if request.remote_addr in Banlist:
@@ -964,38 +904,6 @@ def user_get(user):
 			break
 	return result
 
-@app.route('/<account>/private_keys', methods=['GET'])
-def account_private_keys(account):
-	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		if len(account) >= 36 and len(account) <= 50:
-			abort(403)
-		try:
-			con = sql.connect("info.db", check_same_thread=False)
-			con.row_factory = sql.Row
-			cur = con.cursor()
-			private_keys = []
-			cur.execute('SELECT * FROM keys WHERE identifier=?', (account,))
-			results = cur.fetchall()
-			if len(result) > 0:
-				for result in results:
-					private_key = result["private_key"]
-					if private_key not in private_keys:
-						private_keys.append(private_key)
-				result = ','.join(private_keys)
-				return result
-			else:
-				return "None"
-		except:
-			pass
-		finally:
-			try:
-				con.close()
-			except:
-				pass
-		return "None"
-	else:
-		abort(403)
-
 @app.route('/user/<user>/public_key', methods=['GET'])
 def user_get_public_key(user):
 	if len(user) < 36 or len(user) > 50:
@@ -1019,25 +927,6 @@ def user_get_public_key(user):
 		except:
 			pass
 	return "None"
-
-@app.route('/dApps/new', methods=['POST'])
-def dApps_new():
-	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		payload = request.data
-		payload_details = payload.split(",")
-		operation = payload_details[0]
-		found = False
-		for dAppData in dAppsData:
-			dAppData_details = dAppData.split(",")
-			time_added = dAppData_details[-1]
-			dAppData_test = dAppData.replace("," + time_added,"")
-			if dAppData_test == payload:
-				found = True
-		if found == False:
-			dAppsData.append(payload + "," + str(time.time()))
-		return "Done"
-	else:
-		abort(403)
 
 @app.route('/ban/new', methods=['POST'])
 def ban_new():
@@ -1168,8 +1057,9 @@ def ask_memory(account,peer):
 			payload = decrypt.decryptWithRSAKey(EncryptionKey,return_data.content)
 			if payload == False:
 				return
-			memory_new(user,payload)
-			print time.strftime("%d/%m/%Y %H:%M:%S", time.gmtime()) + " ["+account+"] <- received data from " + peer
+			result = memory_new(user,payload)
+			if result == "Added":
+				print time.strftime("%d/%m/%Y %H:%M:%S", time.gmtime()) + " ["+account+"] <- received data from " + peer
 	except:
 		pass
 	finally:
@@ -1353,17 +1243,6 @@ def daemon_data():
 			pass
 
 		try:
-			if len(dAppsData) > 0:
-				for data_in_pool in dAppsData:
-					details = data_in_pool.split(",")
-					time_added = details[-1]
-					time_now = time.time()
-					if time_now - float(time_added) > 600:
-						dAppsData.remove(data_in_pool)
-		except:
-			pass
-
-		try:
 			for transaction in my_transactions:
 				details = transaction.split(",")
 				timestamp = details[1]
@@ -1494,7 +1373,7 @@ def daemon():
 				results = cur.fetchall()
 				if len(results) > 0:
 					last_generated = results[0]["time_generated"]
-					if time.time() - float(last_generated) >= 500:
+					if time.time() - float(last_generated) >= 300:
 						priv_key,pub_key = keys.generate()
 						time_now = time.time()
 						cur.execute('INSERT INTO keys (identifier,public_key,private_key,time_generated) VALUES (?,?,?,?)', (account,pub_key,priv_key,str(time_now)))
@@ -1591,7 +1470,7 @@ def daemon():
 			connected_nodes()
 			get_other_nodes()
 			Last_check = time.time()
-		if time.time() - Last_online > 480:
+		if time.time() - Last_online > 300:
 			send_online_status()
 			Last_online = time.time()
 		if time.time() - Last_search > 2:
