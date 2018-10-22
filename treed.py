@@ -887,7 +887,7 @@ def users_online():
 		results = cur.fetchall()
 		for result in results:
 			last_online = result["last_online"]
-			if time.time() - float(last_online) <= 360:
+			if time.time() - float(last_online) <= 420:
 				users_online_now += 1
 	except:
 		pass
