@@ -4,24 +4,10 @@ import time
 import sqlite3 as sql
 import requests
 from hashlib import sha256
-import ConfigParser
 
 def create_payload(account):
 	try:
-		config = ConfigParser.RawConfigParser()
-		config.read("treec")
-		try:
-			dApps_setting = config.get(account, 'dApps')
-			dApps_setting_details = dApps_setting.split(",")
-			if "OSP" in dApps_setting_details:
-				dApps_setting_details.remove("OSP")
-			if len(dApps_setting_details) > 0:
-				additional2 = ','.join(dApps_setting_details)
-				additional2 = additional2.encode("hex")
-			else:
-				additional2 = "None".encode("hex")
-		except:
-			additional2 = "None".encode("hex")
+		additional2 = "None".encode("hex")
 		con = sql.connect("info.db")
 		con.row_factory = sql.Row
 		cur = con.cursor()
