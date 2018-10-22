@@ -394,7 +394,7 @@ def memory_pool_new():
 					if len(result) == 1:
 						supportedDAPPS = result[0]["protocols"]
 						supportedDAPPS_details = supportedDAPPS.split(",")
-						if operation not in supportedDAPPS_details:
+						if operation not in supportedDAPPS_details or operation == "None":
 							return "Done"
 					else:
 						return "Done"
@@ -409,12 +409,12 @@ def memory_pool_new():
 						times_connected_updated = int(times_connected) + 1
 						cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', (times_connected_updated, sender, receiver))
 						con.commit()
+						cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (receiver,sender))
+						result = cur.fetchall()
+						if len(result) == 1:
+							cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', ("0",receiver,sender))
+							con.commit()
 				else:
-					cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (receiver,sender))
-					result = cur.fetchall()
-					if len(result) == 1:
-						cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', ("0",receiver,sender))
-						con.commit()
 					cur.execute('INSERT INTO connections (sender,receiver,times_connected,time) VALUES (?,?,?,?)', (sender,receiver,"0",str(time.time())))
 					con.commit()
 			additional1 = payload_details[4]
