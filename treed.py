@@ -878,15 +878,25 @@ def users_total():
 def users_online():
 	if request.remote_addr in Banlist:
 		abort(403)
-	result = []
-	for data_in_pool in memory_pool:
-		data_in_pool_details = data_in_pool.split(",")
-		operation = data_in_pool_details[0]
-		sender = data_in_pool_details[1]
-		if operation == "OSP":
-			if sender not in result:
-				result.append(sender)
-	return str(len(result))
+	users_online_now = 0
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM users')
+		results = cur.fetchall()
+		for result in results:
+			last_online = result["last_online"]
+			if time.time() - float(last_online) <= 300:
+				users_online_now += 1
+	except:
+		pass
+	finally:
+		try:
+			con.close()
+		except:
+			pass
+	return str(users_online_now)
 
 @app.route('/user/<user>', methods=['GET'])
 def user_get(user):
