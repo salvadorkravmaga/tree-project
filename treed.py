@@ -260,31 +260,6 @@ for account in accounts:
 	except:
 		GetFromSettings.update({account:"ALL"})
 
-try:
-	trusted_nodes_setting = config.get('Configuration', 'TrustedNodes')
-	trusted_nodes_list = trusted_nodes_setting.split(",")
-	final_trusted_nodes = []
-	for trusted_node_list in trusted_nodes_list:
-		if len(trusted_node_list) == 52:
-			if trusted_node_list not in trusted_nodes:
-				final_trusted_nodes.append(trusted_node_list)
-				cur.execute('SELECT * FROM trusted_nodes WHERE identifier=?', (trusted_node_list,))
-				result = cur.fetchall()
-				if len(result) == 0:
-					cur.execute('INSERT INTO trusted_nodes (identifier) VALUES (?)', (trusted_node_list,))
-					con.commit()
-	cur.execute('SELECT * FROM trusted_nodes')
-	result = cur.fetchall()
-	if len(result) > 0:
-		for trusted_node in result:
-			if trusted_node["identifier"] not in final_trusted_nodes:
-				cur.execute('DELETE FROM trusted_nodes WHERE identifier=?', (trusted_node["identifier"],))
-				con.commit()
-	final_trusted_nodes = []
-	trusted_nodes_list = []
-except:
-	pass
-
 @app.route('/other/nodes', methods=['GET'])
 def get_other_nodes():
 	if request.remote_addr not in Banlist:
@@ -539,37 +514,63 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 			con = sql.connect("info.db", check_same_thread=False)
 			con.row_factory = sql.Row
 			cur = con.cursor()
-			cur.execute('SELECT * FROM trusted_nodes WHERE identifier=?', (user,))
-			result = cur.fetchall()
-			if len(result) == 0:
+			return_data = requests.get("http://127.0.0.1:12995/available/memory")
+			result = return_data.content
+			if result == "False":
 				cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
 				result = cur.fetchall()
 				if len(result) == 1:
 					nonce = result[0]["proof_of_work"]
-					if nonce != None and nonce != "None":
+					if nonce == "POSTED" or nonce == None:
 						word = generator.get()
 						proofofwork = generator.hashed(word)
 						time_generated = str(int(time.time()))
 						cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work=?, proof_of_work_time=? WHERE identifier=?', (proofofwork,"None",time_generated,user))
 						con.commit()
 					else:
-						time_generated = result[0]["time_generated"]
-						if time.time() - float(time_generated) < 25:
-							hashed = result[0]["hash"]
-							return hashed + "," + time_generated
+						time_generated = result[0]["proof_of_work_time"]
+						if time_generated == "None" and nonce == "None":
+							proofofwork = "None"
+							time_generated = "None"
 						else:
-							word = generator.get()
-							proofofwork = generator.hashed(word)
-							time_generated = str(int(time.time()))
-							cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work_time=? WHERE identifier=?', (proofofwork,time_generated,user))
+							if time.time() - float(time_generated) < 25:
+								hashed = result[0]["hash"]
+								return hashed + "," + time_generated
+							else:
+								word = generator.get()
+								proofofwork = generator.hashed(word)
+								time_generated = str(int(time.time()))
+								cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work=?, proof_of_work_time=? WHERE identifier=?', (proofofwork,"None",time_generated,user))
+								con.commit()
+					return proofofwork + "," + time_generated
+				else:
+					abort(403)
+			else:
+				cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
+				result = cur.fetchall()
+				if len(result) == 1:
+					nonce = result[0]["proof_of_work"]
+					if nonce == "POSTED" or nonce == None:
+						proofofwork = "None"
+						time_generated = "None"
+						cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work=?, proof_of_work_time=? WHERE identifier=?', ("None","None","None",user))
+						con.commit()
+					elif nonce == "None":
+						proofofwork = "None"
+						time_generated = "None"
+					else:
+						time_generated = result[0]["proof_of_work_time"]
+						if time.time() - float(time_generated) < 25:
+							return nonce + "," + time_generated
+						else:
+							proofofwork = "None"
+							time_generated = "None"
+							cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work=?, proof_of_work_time=? WHERE identifier=?', ("None","None","None",user))
 							con.commit()
 					return proofofwork + "," + time_generated
 				else:
 					abort(403)
-			elif len(result) == 1:
 				return "None,None"
-			else:
-				return "Something went wrong."
 		except:
 			return "Something went wrong."
 		finally:
@@ -663,26 +664,27 @@ def data_new(Identifier,public_key,timestamp,signature,hash,nonce):
 			if len(result) == 1:
 				payload = request.data
 				EncryptionKey = result[0]["EncryptionKey"]
-				cur.execute('SELECT * FROM trusted_nodes WHERE identifier=?', (Identifier,))
-				trusted = cur.fetchall()
-				if len(trusted) == 1:
+				Hash = result[0]["hash"]
+				if Hash != str(hash):
+					abort(403)
+				ProofOfWorkTime = result[0]["proof_of_work_time"]
+				ProofOfWork = result[0]["proof_of_work"]
+				if Hash == "None" and ProofOfWorkTime == "None" and ProofOfWork == "None":
+					cur.execute('UPDATE fakeAccounts SET proof_of_work=? WHERE identifier=?',("POSTED",Identifier))
+					con.commit()
 					payload = decrypt.decryptWithRSAKey(EncryptionKey,payload)
 					if payload != False:
 						result = memory_new(Identifier,payload)
 						if result == "Ban":
 							check_ban = requests.get("http://127.0.0.1:12995/check/ban/"+Identifier+"/"+request.remote_addr)
-							cur.execute('DELETE FROM trusted_nodes WHERE identifier=?', (Identifier,))
-							con.commit()
 							return "You have been banned! Bye!"
 						else:
 							return "Added"
 					else:
 						abort(403)
 				else:
-					Hash = result[0]["hash"]
-					if Hash != str(hash):
+					if ProofOfWork == "POSTED":
 						abort(403)
-					ProofOfWorkTime = result[0]["proof_of_work_time"]
 					if time.time() - float(ProofOfWorkTime) < 25 and time.time() - float(ProofOfWorkTime) > 5:
 						result = proof_of_work.verify(hash,nonce)
 						if result == False:
@@ -898,26 +900,26 @@ def users_online():
 			pass
 	return str(users_online_now)
 
+@app.route('/available/memory', methods=['GET'])
+def available_memory():
+	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
+		memory = psutil.virtual_memory()
+		available = memory[1]
+		available = float(available) / float(1000000000)
+		if available > 1:
+			return "True"
+		else:
+			return "False"
+	else:
+		abort(403)
+
 @app.route('/user/<user>', methods=['GET'])
 def user_get(user):
 	if request.remote_addr in Banlist:
 		abort(403)
 	if len(user) < 36 or len(user) > 50:
 		abort(403)
-	result = "None"
-	for data_in_pool in memory_pool:
-		data_in_pool_details = data_in_pool.split(",")
-		operation = data_in_pool_details[0]
-		sender = data_in_pool_details[1]
-		if operation == "OSP" and user == sender:
-			result = data_in_pool
-			break
-	return result
-
-@app.route('/user/<user>/public_key', methods=['GET'])
-def user_get_public_key(user):
-	if len(user) < 36 or len(user) > 50:
-		abort(403)
+	payload = "None"
 	try:
 		con = sql.connect("info.db", check_same_thread=False)
 		con.row_factory = sql.Row
@@ -925,10 +927,7 @@ def user_get_public_key(user):
 		cur.execute('SELECT * FROM users WHERE identifier=?', (user,))
 		result = cur.fetchall()
 		if len(result) == 1:
-			public_key = result[0]["public_key"]
-			return public_key
-		else:
-			return "None"
+			payload = result[0]["payload"]
 	except:
 		pass
 	finally:
@@ -936,7 +935,7 @@ def user_get_public_key(user):
 			con.close()
 		except:
 			pass
-	return "None"
+	return payload
 
 @app.route('/ban/new', methods=['POST'])
 def ban_new():
