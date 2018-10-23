@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS users (
 	public_key_hex text NOT NULL,
 	public_key text DEFAULT 'Unknown',
 	last_online text DEFAULT '0',
-	protocols text NOT NULL
+	protocols text NOT NULL,
+	payload text NOT NULL
 );
 
 NEW_TABLE
@@ -93,10 +94,4 @@ CREATE TABLE IF NOT EXISTS connections (
 	receiver text NOT NULL,
 	times_connected text NOT NULL,
 	time text NOT NULL
-);
-
-NEW_TABLE
-
-CREATE TABLE IF NOT EXISTS trusted_nodes (
-	identifier text NOT NULL
 );
