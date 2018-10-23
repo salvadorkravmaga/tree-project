@@ -22,6 +22,7 @@ import sqlite3 as sql
 import thread
 import logging
 import ipaddress
+import psutil
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.CRITICAL)
