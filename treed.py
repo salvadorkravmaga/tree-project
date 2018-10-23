@@ -335,13 +335,12 @@ def memory_pool_new():
 				return "Done"
 			if operation != "OSP":
 				found = False
-				for data_in_pool in memory_pool:
-					data_in_pool_details = data_in_pool.split(",")
-					OPERATION = data_in_pool_details[0]
-					SENDER = data_in_pool_details[1]
-					if OPERATION == "OSP" and SENDER == sender:
+				cur.execute('SELECT * FROM users WHERE identifier=?', (sender,))
+				result = cur.fetchall()
+				if len(result) == 1:
+					last_online = result[0]["last_online"]
+					if time.time() - float(last_online) < 420:
 						found = True
-						break
 				if found == False:
 					return "Done"
 				times_found = 0
@@ -355,13 +354,12 @@ def memory_pool_new():
 					return "Done"
 			if operation != "OSP":
 				found = False
-				for data_in_pool in memory_pool:
-					data_in_pool_details = data_in_pool.split(",")
-					OPERATION = data_in_pool_details[0]
-					RECEIVER = data_in_pool_details[2]
-					if OPERATION == "OSP" and RECEIVER == receiver:
+				cur.execute('SELECT * FROM users WHERE identifier=?', (receiver,))
+				result = cur.fetchall()
+				if len(result) == 1:
+					last_online = result[0]["last_online"]
+					if time.time() - float(last_online) < 420:
 						found = True
-						break
 				if found == False:
 					return "Done"
 				else:
@@ -397,37 +395,11 @@ def memory_pool_new():
 			data = payload_details[7]
 			tx_hash = payload_details[8]
 			if operation == "OSP":
-				found = False
-				for data_in_pool in memory_pool:
-					Payload_details = data_in_pool.split(",")
-					Operation = Payload_details[0]
-					Sender = Payload_details[1]
-					Receiver = Payload_details[2]
-					Time_added = Payload_details[3]
-					TX_HASH = Payload_details[8]
-					if operation == Operation and sender == Sender and receiver == Receiver and float(time_added) - float(Time_added) >= 300:
-						result = node.constructor(payload)
-						if result == True:
-							if payload not in memory_pool:
-								memory_pool.append(payload)
-								memory_pool.remove(data_in_pool)
-							requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
-							my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=tx_hash)
-							return "Data added to the pool."
-						else:
-							return "Done"
-						found = True
-						break
-				if found == False:
-					result = node.constructor(payload)
-					if result == True:
-						if payload not in memory_pool:
-							memory_pool.append(payload)
-						requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
-						my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=tx_hash)
-						return "Data added to the pool."
-					else:
-						return "Done"
+				result = node.constructor(payload)
+				if result == True:
+					return "Data added to the pool."
+				else:
+					return "Done"
 			else:
 				if receiver in accounts:
 					node.constructor(payload)
@@ -439,7 +411,6 @@ def memory_pool_new():
 							memory_pool.append(payload)
 					else:
 						requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
-				my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=tx_hash)
 				return "Data added to the pool"
 		except:
 			return "Something went wrong."
@@ -551,7 +522,7 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 				result = cur.fetchall()
 				if len(result) == 1:
 					nonce = result[0]["proof_of_work"]
-					if nonce == "POSTED" or nonce == None:
+					if nonce == "POSTED" or nonce == "None":
 						proofofwork = "None"
 						time_generated = "None"
 						cur.execute('UPDATE fakeAccounts SET hash=?, proof_of_work=?, proof_of_work_time=? WHERE identifier=?', ("None","None","None",user))
