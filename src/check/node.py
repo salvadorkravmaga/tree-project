@@ -95,7 +95,8 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 				return False
 		else:
 			return False
-	except:
+	except Exception as e:
+		print e
 		pass
 	finally:
 		try:
@@ -112,17 +113,6 @@ def constructor(payload):
 	additional2 = details[5]
         additional3 = details[6]
 	tx_hash = details[8]
-	get_tx_status = False
-	get_tx_status_tries = 0
-	while get_tx_status == False and get_tx_status_tries < 3:
-		try:
-			check_my_transactions = requests.get("http://127.0.0.1:12995/tx/"+tx_hash)
-			get_tx_status = True
-			if check_my_transactions.content == "True":
-				return result
-		except:
-			get_tx_status_tries += 1
-			time.sleep(2)
 	if operation == "OSP":
 		sender = details[1]
 		test_ban = check_ban(sender)
