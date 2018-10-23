@@ -4,11 +4,6 @@ from hashlib import sha256
 import time
 import sqlite3 as sql
 import requests
-import os.path
-import ConfigParser
-import sys
-import StringIO
-import contextlib
 
 def check_ban(identifier):
 	try:
@@ -66,6 +61,7 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 		cur = con.cursor()
 	except:
 		pass
+	payload = "OSP" + "," + sender + "," + receiver + "," + timestamp + "," + additional1 + "," + additional2 + "," + additional3 + "," + data + "," + tx_hash + "," + signature
 	try:
 		if sender != receiver:
 			return False
@@ -86,12 +82,14 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 			except:
 				return False
 			if Data != "None" and Data != "":
-				cur.execute('DELETE FROM users WHERE identifier=?', (sender,))
-				con.commit()
-				cur.execute('INSERT INTO users (identifier,public_key_hex,public_key,last_online,protocols) VALUES (?,?,?,?,?)', (sender,additional3,Data,timestamp,protocols))
-				con.commit()
-				payload = tx_hash + "," + timestamp
-				my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=payload)
+				cur.execute('SELECT * FROM users WHERE identifier=?', (sender,))
+				result = cur.fetchall()
+				if len(result) == 0:
+					cur.execute('INSERT INTO users (identifier,public_key_hex,public_key,last_online,protocols,payload) VALUES (?,?,?,?,?,?)', (sender,additional3,Data,timestamp,protocols,payload))
+					con.commit()
+				else:
+					cur.execute('UPDATE users SET public_key=?,last_online=?,protocols=?,payload=? WHERE identifier=?', (Data,timestamp,protocols,payload,sender))
+					con.commit()
 				return True
 			else:
 				return False
@@ -110,16 +108,6 @@ def constructor(payload):
 	details = payload.split(",")
 	operation = details[0]
 	receiver = details[2]
-	if operation != "OSP":
-		try:
-			config = ConfigParser.RawConfigParser()
-			config.read("treec")
-			dapps = config.get(receiver, 'dApps')
-			dapps_details = dapps.split(",")
-		except:
-			return
-	else:
-		dapps_details = []
 	additional1 = details[4]
 	additional2 = details[5]
         additional3 = details[6]
@@ -135,7 +123,7 @@ def constructor(payload):
 		except:
 			get_tx_status_tries += 1
 			time.sleep(2)
-	if operation in dapps_details or operation == "OSP":
+	if operation == "OSP":
 		sender = details[1]
 		test_ban = check_ban(sender)
 		if test_ban == "True":
@@ -143,21 +131,7 @@ def constructor(payload):
 		timestamp = details[3]
 		data = details[7]
 		signature = details[9]
-		if operation == "OSP":
-			result = online_status(sender,receiver,timestamp,additional1,additional2,additional3,data,tx_hash,signature)
-		else:
-			posted = False
-			posted_tries = 0
-			while posted == False and posted_tries < 3:
-				try:
-					dApps_post = requests.post("http://127.0.0.1:12995/dApps/new", data=payload)
-					posted = True
-				except:
-					posted_tries += 1
-					time.sleep(1)
-			payload = tx_hash + "," + timestamp
-			my_transactions_post = requests.post("http://127.0.0.1:12995/tx/new", data=payload)
-			result = "True"
+		result = online_status(sender,receiver,timestamp,additional1,additional2,additional3,data,tx_hash,signature)
 		return result
 	else:
 		return result

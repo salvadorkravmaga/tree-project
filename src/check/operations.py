@@ -31,6 +31,7 @@ def check_payload(payload):
 				result = requests.get("http://127.0.0.1:12995/tx/"+TX_hash)
 				result = result.content
 				if result == "False":
+					requests.post("http://127.0.0.1:12995/tx/new", data=transaction_hash)
 					return sender + "," + "True"
 				else:
 					return sender + "," + "Received"
