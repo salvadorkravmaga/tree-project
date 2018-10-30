@@ -1,8 +1,7 @@
-ecdsa
-requests
-flask
-flask-limiter
-pycrypto
-base58
-ipaddress
-psutil
+ecdsa==0.13
+requests==2.18.4
+flask==1.0.2
+flask-limiter==1.0.1
+pycrypto==2.6.1
+base58==1.0.0
+ipaddress==1.0.17
