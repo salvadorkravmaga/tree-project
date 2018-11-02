@@ -11,6 +11,7 @@ from src.proof import generator, proof_of_work
 from flask import Flask, request, abort
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_cors import CORS
 from functools import wraps
 import requests
 import ConfigParser
@@ -46,6 +47,7 @@ config = ConfigParser.RawConfigParser()
 config.read("treec")
 
 app = Flask(__name__)
+CORS(app)
 limiter = Limiter(
     app,
     key_func=get_remote_address,
@@ -1238,15 +1240,13 @@ def daemon():
 	Last_online = 0
 	Last_search = 0
 	Last_peers_check = 0
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+	except:
+		pass
 	while True:
-
-		try:
-			con = sql.connect("info.db", check_same_thread=False)
-			con.row_factory = sql.Row
-			cur = con.cursor()
-		except:
-			pass
-
 		try:
 			cur.execute('SELECT * FROM keys')
 			results = cur.fetchall()
@@ -1458,10 +1458,6 @@ def daemon():
 			ask_for_new_data()
 			Last_search = time.time()
 
-		try:
-			con.close()
-		except:
-			pass
 
 thread.start_new_thread(daemon,())
 app_server()

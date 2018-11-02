@@ -5,3 +5,4 @@ flask-limiter==1.0.1
 pycrypto==2.6.1
 base58==1.0.0
 ipaddress==1.0.17
+flask-cors==3.0.6
