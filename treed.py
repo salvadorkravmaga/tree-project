@@ -545,7 +545,8 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 				else:
 					abort(403)
 				return "None,None"
-		except:
+		except Exception as e:
+			print e
 			return "Something went wrong."
 		finally:
 			try:
@@ -604,8 +605,7 @@ def encryption_post(user,public_key,timestamp,signature):
 				cur.execute('INSERT INTO fakeAccounts (identifier,EncryptionKey,time_generated) VALUES (?,?,?)', (user,usersEncryptionKey,str(int(time.time()))))
 				con.commit()
 			return "OK"
-	except Exception as e:
-		print e
+	except:
 		return "Something went wrong."
 	finally:
 		try:
