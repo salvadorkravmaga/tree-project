@@ -33,7 +33,7 @@ starting_time = str(time.time())
 memory_pool = ["None,None,None,"+starting_time+",None,None,None,None,None,None"]
 
 accounts = []
-nodes = ["2a02:587:440f:9800:9c59:df18:2c9b:bc82"]
+nodes = ["2a02:587:4415:a700:d8d:fdd2:f799:5150"]
 connections = []
 GetFromSettings = {}
 PostToSettings = {}
@@ -603,7 +603,8 @@ def encryption_post(user,public_key,timestamp,signature):
 				cur.execute('INSERT INTO fakeAccounts (identifier,EncryptionKey,time_generated) VALUES (?,?,?)', (user,usersEncryptionKey,str(int(time.time()))))
 				con.commit()
 			return "OK"
-	except:
+	except Exception as e:
+		print e
 		return "Something went wrong."
 	finally:
 		try:
@@ -877,12 +878,15 @@ def users_online():
 @app.route('/available/memory', methods=['GET'])
 def available_memory():
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		memory = psutil.virtual_memory()
-		available = memory[1]
-		available = float(available) / float(1000000000)
-		if available > 1:
-			return "True"
-		else:
+		try:
+			memory = psutil.virtual_memory()
+			available = memory[1]
+			available = float(available) / float(1000000000)
+			if available > 1:
+				return "True"
+			else:
+				return "False"
+		except:
 			return "False"
 	else:
 		abort(403)
