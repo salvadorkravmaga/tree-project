@@ -573,6 +573,7 @@ def encryption_post(user,public_key,timestamp,signature):
 		abort(403)
 	try:
 		con = sql.connect("info.db", check_same_thread=False)
+		con.text_factory = str
 		con.row_factory = sql.Row
 		cur = con.cursor()
 		cur.execute('SELECT * FROM fake_account')
