@@ -486,6 +486,7 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 	if time.time() - float(timestamp) < 40:
 		try:
 			con = sql.connect("info.db", check_same_thread=False)
+			con.text_factory = str
 			con.row_factory = sql.Row
 			cur = con.cursor()
 			return_data = requests.get("http://127.0.0.1:12995/available/memory")
