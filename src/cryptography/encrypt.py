@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from base64 import *
-from Crypto.Cipher import AES
+from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto import Random
 import time
@@ -16,7 +16,8 @@ base64unpad = lambda s: s.rstrip("=")
 def encryptwithPubKey(publicKey,text):
 	try:
 		publicKey = RSA.importKey(publicKey,None)
-		enc=publicKey.encrypt(text,None)[0]
+		encryptor = PKCS1_OAEP.new(publicKey)
+		enc=encryptor.encrypt(text)
 		encb64 = encodestring(enc)
 		encb64 = encb64.replace("\n","")
 		return encb64
