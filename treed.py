@@ -28,18 +28,12 @@ import psutil
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.CRITICAL)
 
-starting_time = str(time.time())
-
-memory_pool = ["None,None,None,"+starting_time+",None,None,None,None,None,None"]
-
 accounts = []
-nodes = ["2a02:587:4415:a700:d8d:fdd2:f799:5150"]
+nodes = []
 connections = []
 GetFromSettings = {}
 PostToSettings = {}
 PostTo = []
-my_data = []
-my_transactions = []
 Banlist = []
 
 path = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -47,12 +41,7 @@ config = ConfigParser.RawConfigParser()
 config.read("treec")
 
 app = Flask(__name__)
-CORS(app)
-limiter = Limiter(
-    app,
-    key_func=get_remote_address,
-    default_limits=["60 per minute"]
-)
+
 
 def whatis(ip):
 	try:
@@ -83,10 +72,11 @@ def test_peers():
 				cur = con.cursor()
 				cur.execute('SELECT * FROM test_peers WHERE peer=?', (peer,))
 				result = cur.fetchall()
-				if len(result) == 0 and request.remote_addr != "127.0.0.1":
+				if len(result) == 0:
 					cur.execute('INSERT INTO test_peers (peer) VALUES (?)', (peer,))
 					con.commit()
-			except:
+			except Exception as e:
+				print e
 				pass
 			finally:
 				try:
@@ -96,27 +86,6 @@ def test_peers():
 			return f(*args, **kwargs)
         return wrapper
     return decorator
-
-def last_logs(Identifier):
-	try:
-		con = sql.connect("info.db", check_same_thread=False)
-		con.row_factory = sql.Row
-		cur = con.cursor()
-		cur.execute('SELECT * FROM last_logs WHERE identifier=?', (Identifier,))
-		result = cur.fetchall()
-		if len(result) == 0:
-			cur.execute('INSERT INTO last_logs (identifier,time) VALUES (?,?)', (Identifier,str(time.time())))
-			con.commit()
-		else:
-			cur.execute('UPDATE last_logs SET time=? WHERE identifier=?', (str(time.time()),Identifier))
-			con.commit()
-	except:
-		pass
-	finally:
-		try:
-			con.close()
-		except:
-			pass
 
 try:
 	print "[!] Checking accounts"
@@ -289,110 +258,84 @@ def connections_account(account):
 	else:
 		abort(403)
 
-@app.route('/last/log/new', methods=['POST'])
-def last_log_new():
-	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		data = request.data
-		details = data.split(",")
-		Identifier = details[0]
-		peer = details[1]
-		try:
-			con = sql.connect("info.db", check_same_thread=False)
-			con.row_factory = sql.Row
-			cur = con.cursor()
-			cur.execute('SELECT * FROM last_logs WHERE peer=?', (peer,))
-			result = cur.fetchall()
-			if len(result) == 0:
-				cur.execute('INSERT INTO last_logs (peer,identifier,time) VALUES (?,?,?)', (peer,Identifier,str(time.time())))
-				con.commit()
-		except:
-			pass
-		finally:
-			try:
-				con.close()
-			except:
-				pass
-
-		return "Done"
-	else:
-		abort(403)
-
 @app.route('/memory/pool/new', methods=['POST'])
 def memory_pool_new():
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		try:
-			global memory_pool
+			mixed = False
 			con = sql.connect("info.db", check_same_thread=False)
 			con.row_factory = sql.Row
 			cur = con.cursor()
 			payload = request.data
-			if payload in memory_pool:
-				return "Done"
 			payload_details = payload.split(",")
 			operation = payload_details[0]
 			sender = payload_details[1]
+			sender_details = sender.split("|")
+			if len(sender_details) > 1:
+				mixed = True
 			receiver = payload_details[2]
+			receiver_details = receiver.split("|")
 			time_added = payload_details[3]
-			if time.time() - float(time_added) > 1800:
+			if time.time() - float(time_added) > 600:
 				return "Done"
 			if operation != "OSP":
-				found = False
-				cur.execute('SELECT * FROM users WHERE identifier=?', (sender,))
-				result = cur.fetchall()
-				if len(result) == 1:
-					last_online = result[0]["last_online"]
-					if time.time() - float(last_online) < 420:
-						found = True
-				if found == False:
-					return "Done"
-				times_found = 0
-				for data_in_pool in memory_pool:
-					data_in_pool_details = data_in_pool.split(",")
-					OPERATION = data_in_pool_details[0]
-					SENDER = data_in_pool_details[1]
-					if sender == SENDER and OPERATION != "OSP":
-						times_found += 1
-				if times_found >= 5:
-					return "Done"
-			if operation != "OSP":
-				found = False
-				cur.execute('SELECT * FROM users WHERE identifier=?', (receiver,))
-				result = cur.fetchall()
-				if len(result) == 1:
-					last_online = result[0]["last_online"]
-					if time.time() - float(last_online) < 420:
-						found = True
-				if found == False:
-					return "Done"
-				else:
-					cur.execute('SELECT * FROM users WHERE identifier=?', (receiver,))
+				for Sender in sender_details:
+					found = False
+					cur.execute('SELECT * FROM users WHERE identifier=?', (Sender,))
 					result = cur.fetchall()
 					if len(result) == 1:
-						supportedDAPPS = result[0]["protocols"]
-						supportedDAPPS_details = supportedDAPPS.split(",")
-						if operation not in supportedDAPPS_details or operation == "None":
-							return "Done"
-					else:
+						last_online = result[0]["last_online"]
+						if time.time() - float(last_online) < 420:
+							found = True
+					if found == False:
+						return "Done"
+				if mixed == False:
+					cur.execute('SELECT * FROM cache WHERE sender=? AND receiver=?', (sender_details[0],receiver_details[0]))
+					result = cur.fetchall()
+					times_found = len(result)
+					if times_found >= 5:
 						return "Done"
 			if operation != "OSP":
-				cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (sender,receiver))
-				result = cur.fetchall()
-				if len(result) == 1:
-					times_connected = result[0]["times_connected"]
-					if int(times_connected) >= 10:
+				for Receiver in receiver_details:
+					found = False
+					cur.execute('SELECT * FROM users WHERE identifier=?', (Receiver,))
+					result = cur.fetchall()
+					if len(result) == 1:
+						last_online = result[0]["last_online"]
+						if time.time() - float(last_online) < 420:
+							found = True
+					if found == False:
 						return "Done"
 					else:
-						times_connected_updated = int(times_connected) + 1
-						cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', (times_connected_updated, sender, receiver))
-						con.commit()
-						cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (receiver,sender))
+						cur.execute('SELECT * FROM users WHERE identifier=?', (Receiver,))
 						result = cur.fetchall()
 						if len(result) == 1:
-							cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', ("0",receiver,sender))
+							supportedDAPPS = result[0]["protocols"]
+							supportedDAPPS_details = supportedDAPPS.split(",")
+							if operation not in supportedDAPPS_details or operation == "None":
+								return "Done"
+						else:
+							return "Done"
+			if mixed == False:
+				if operation != "OSP":
+					cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (sender_details[0],receiver_details[0]))
+					result = cur.fetchall()
+					if len(result) == 1:
+						times_connected = result[0]["times_connected"]
+						if int(times_connected) >= 10:
+							return "Done"
+						else:
+							times_connected_updated = int(times_connected) + 1
+							cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', (times_connected_updated, sender_details[0],receiver_details[0]))
 							con.commit()
-				else:
-					cur.execute('INSERT INTO connections (sender,receiver,times_connected,time) VALUES (?,?,?,?)', (sender,receiver,"0",str(time.time())))
-					con.commit()
+							cur.execute('SELECT * FROM connections WHERE sender=? AND receiver=?', (receiver,sender))
+							result = cur.fetchall()
+							if len(result) == 1:
+								cur.execute('UPDATE connections SET times_connected=? WHERE sender=? AND receiver=?', ("0",receiver_details[0],sender_details[0]))
+								con.commit()
+					else:
+						cur.execute('INSERT INTO connections (sender,receiver,times_connected,time) VALUES (?,?,?,?)', (sender_details[0],receiver_details[0],"0",str(time.time())))
+						con.commit()
 			additional1 = payload_details[4]
 			data = payload_details[7]
 			tx_hash = payload_details[8]
@@ -403,16 +346,15 @@ def memory_pool_new():
 				else:
 					return "Done"
 			else:
-				if receiver in accounts:
-					node.constructor(payload)
+				if mixed == False:
+					cur.execute('INSERT INTO cache (sender,receiver,time,operation,tx_hash,data,status) VALUES (?,?,?,?,?,?,?)', (sender_details[0],receiver_details[0],time_added,operation,tx_hash,payload,"KEEP"))
+					con.commit()
 				else:
-					cur.execute('SELECT * FROM last_logs WHERE identifier=?', (receiver,))
-					result = cur.fetchall()
-					if len(result) > 0:
-						if payload not in memory_pool:
-							memory_pool.append(payload)
-					else:
-						requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
+					for Sender in sender_details:
+						for Receiver in receiver_details:
+							cur.execute('INSERT INTO cache (sender,receiver,time,operation,tx_hash,data,status) VALUES (?,?,?,?,?,?,?)', (Sender,Receiver,time_added,operation,tx_hash,payload,"KEEP"))
+							con.commit()
+				requests.post("http://127.0.0.1:12995/data/pool/new", data=payload)
 				return "Data added to the pool"
 		except:
 			return "Something went wrong."
@@ -460,7 +402,8 @@ def nodeinfo():
 		timestamp = str(int(time.time()))
 		signature = messages.sign_message(private_key,identifier+":"+timestamp)
 		return str(identifier + "," + public_key + "," + signature.encode("hex") + "," + timestamp)
-	except:
+	except Exception as e:
+		print e
 		return "Something went wrong."
 	finally:
 		try:
@@ -546,8 +489,7 @@ def proofofwork_generate(user,public_key,timestamp,signature):
 				else:
 					abort(403)
 				return "None,None"
-		except Exception as e:
-			print e
+		except:
 			return "Something went wrong."
 		finally:
 			try:
@@ -649,7 +591,7 @@ def data_new(Identifier,public_key,timestamp,signature,hash,nonce):
 				if Hash == "None" and ProofOfWorkTime == "None" and ProofOfWork == "None":
 					cur.execute('UPDATE fakeAccounts SET proof_of_work=? WHERE identifier=?',("POSTED",Identifier))
 					con.commit()
-					payload = decrypt.decryptWithRSAKey(EncryptionKey,payload)
+					payload = decrypt.decryptAES(EncryptionKey,payload)
 					if payload != False:
 						result = memory_new(Identifier,payload)
 						if result == "Ban":
@@ -668,7 +610,7 @@ def data_new(Identifier,public_key,timestamp,signature,hash,nonce):
 							abort(403)
 						cur.execute('UPDATE fakeAccounts SET proof_of_work=? WHERE identifier=?',(nonce,Identifier))
 						con.commit()
-						payload = decrypt.decryptWithRSAKey(EncryptionKey,payload)
+						payload = decrypt.decryptAES(EncryptionKey,payload)
 						if payload != False:
 							result = memory_new(Identifier,payload)
 							if result == "Ban":
@@ -682,7 +624,8 @@ def data_new(Identifier,public_key,timestamp,signature,hash,nonce):
 						abort(403)
 			else:
 				abort(403)
-		except:
+		except Exception as e:
+			print e
 			return "Something went wrong!"
 		finally:
 			try:
@@ -695,27 +638,51 @@ def data_new(Identifier,public_key,timestamp,signature,hash,nonce):
 @app.route('/tx/new', methods=['POST'])
 def my_transactions_add():
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		data = request.data
-		found = False
-		for my_transaction in my_transactions:
-			my_transaction_details = my_transaction.split(",")
-			tx_hash = my_transaction_details[0]
-			if data == tx_hash:
-				found = True
-				break
-		if found == False:
-			my_transactions.append(data+","+str(int(time.time())))
-		return "Done"
+		try:
+			data = request.data
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			details = data.split(",")
+			tx_hash = details[0]
+			timestamp = str(int(float(details[1])))
+			cur.execute('INSERT INTO transactions (tx_hash,time) VALUES (?,?)', (tx_hash,timestamp))
+			con.commit()
+			return "Done"
+		except:
+			return "Something went wrong!"
+		finally:
+			try:
+				con.close()
+			except:
+				pass
 	else:
 		abort(403)
 
 @app.route('/data/pool/new', methods=['POST'])
 def data_pool_new():
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
-		data = request.data
-		if data not in my_data:
-			my_data.append(data)
-		return "Done"
+		try:
+			data = request.data
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			details = data.split(",")
+			operation = details[0]
+			sender = details[1]
+			receiver = details[2]
+			timestamp = str(int(float(details[3])))
+			transaction_hash = details[8]
+			cur.execute('INSERT INTO cache (sender,receiver,time,operation,tx_hash,data,status) VALUES (?,?,?,?,?,?,?)', (sender,receiver,timestamp,operation,transaction_hash,data,"PASS"))
+			con.commit()
+			return "Done"
+		except:
+			return "Something went wrong!"
+		finally:
+			try:
+				con.close()
+			except:
+				pass
 	else:
 		abort(403)
 
@@ -723,13 +690,22 @@ def data_pool_new():
 def check_transaction(tx):
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
 		found = False
-		for transaction in my_transactions:
-			details = transaction.split(",")
-			tx_hash = details[0]
-			if tx_hash == tx:
+		try:
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			cur.execute('SELECT * FROM transactions WHERE tx_hash=?', (tx,))
+			result = cur.fetchall()
+			if len(result) == 1:
 				found = True
-				break
-		return str(found)
+			return str(found)
+		except:
+			return "Something went wrong!"
+		finally:
+			try:
+				con.close()
+			except:
+				pass
 	else:
 		abort(403)
 
@@ -743,7 +719,7 @@ def get_nodes():
 
 @app.route('/memory/search/<user>/<public_key>/<timestamp>/<signature>/<Identifier>/<Identifier_public_key>/<Identifier_signature>', methods=['GET'])
 @test_peers()
-def memory_search_user(user,public_key,timestamp,signature,Identifier,Identifier_public_key,Identifier_signature):
+def memory_search_user_alternative(user,public_key,timestamp,signature,Identifier,Identifier_public_key,Identifier_signature):
 	final = "None"
 	if request.remote_addr in Banlist:
 		abort(403)
@@ -765,13 +741,13 @@ def memory_search_user(user,public_key,timestamp,signature,Identifier,Identifier
 			result = cur.fetchall()
 			if len(result) == 1:
 				EncryptionKey = result[0]["EncryptionKey"]
-				Identifier = decrypt.decryptWithRSAKey(EncryptionKey,str(Identifier))
+				Identifier = decrypt.decryptAES(EncryptionKey,str(Identifier))
 				if Identifier == False:
 					abort(403)
-				Identifier_signature = decrypt.decryptWithRSAKey(EncryptionKey,str(Identifier_signature))
+				Identifier_signature = decrypt.decryptAES(EncryptionKey,str(Identifier_signature))
 				if Identifier_signature == False:
 					abort(403)
-				Identifier_public_key = decrypt.decryptWithRSAKey(EncryptionKey,str(Identifier_public_key))
+				Identifier_public_key = decrypt.decryptAES(EncryptionKey,str(Identifier_public_key))
 				if Identifier_public_key == False:
 					abort(403)
 				testing_address = address.keyToAddr(Identifier_public_key,Identifier)
@@ -783,21 +759,62 @@ def memory_search_user(user,public_key,timestamp,signature,Identifier,Identifier
 				prove_ownership = messages.verify_message(Identifier_public_key,Identifier_signature,message)
 				if prove_ownership == False:
 					abort(403)
-				last_logs(Identifier)
-				found = False
-				for data_in_pool in memory_pool:
-					details = data_in_pool.split(",")
-					operation = details[0]
-					receiver = details[2]
-					additional1 = details[4]
-					TX_hash = details[8]
-					if receiver == Identifier and operation != "OSP":
-						final = data_in_pool
-						memory_pool.remove(data_in_pool)
-						found = True
-						break
-				if found == True:
-					final = encrypt.encryptWithRSAKey(EncryptionKey,final)
+				cur.execute('SELECT * FROM cache WHERE receiver=? AND operation!=? AND status!=? ORDER BY time LIMIT 1', (Identifier,"OSP","PASS"))
+				result = cur.fetchall()
+				if len(result) == 1:
+					tx_hash_output = result[0]["tx_hash"]
+					final = result[0]["data"]
+					final = encrypt.encryptAES(EncryptionKey,final)
+					cur.execute('DELETE FROM cache WHERE tx_hash=? AND receiver=? AND operation!=?', (tx_hash_output,Identifier,"OSP"))
+					con.commit()
+				return final
+			else:
+				abort(403)
+		except:
+			return "Something went wrong!"
+		finally:
+			try:
+				con.close()
+			except:
+				pass
+	
+	return final
+
+@app.route('/memory/search/<user>/<public_key>/<timestamp>/<signature>/<Identifier>', methods=['GET'])
+@test_peers()
+def memory_search_user(user,public_key,timestamp,signature,Identifier):
+	final = "None"
+	if request.remote_addr in Banlist:
+		abort(403)
+	testing_address = address.keyToAddr2(public_key,user)
+	if testing_address != user:
+		abort(403)
+	if testing_address in Banlist:
+		abort(403)
+	message = user + ":" + timestamp
+	prove_ownership = messages.verify_message(public_key,signature,message)
+	if prove_ownership == False:
+		abort(403)
+	if time.time() - float(timestamp) < 10:
+		try:
+			con = sql.connect("info.db", check_same_thread=False)
+			con.row_factory = sql.Row
+			cur = con.cursor()
+			cur.execute('SELECT * FROM fakeAccounts WHERE identifier=?', (user,))
+			result = cur.fetchall()
+			if len(result) == 1:
+				EncryptionKey = result[0]["EncryptionKey"]
+				Identifier = decrypt.decryptAES(EncryptionKey,str(Identifier))
+				if Identifier == False:
+					abort(403)
+				cur.execute('SELECT * FROM cache WHERE receiver=? AND operation!=? AND status!=? ORDER BY RANDOM() LIMIT 1', (Identifier,"OSP","PASS"))
+				result = cur.fetchall()
+				if len(result) == 1:
+					tx_hash_output = result[0]["tx_hash"]
+					final = result[0]["data"]
+					final = encrypt.encryptAES(EncryptionKey,final)
+					if final == False:
+						abort(403)
 				return final
 			else:
 				abort(403)
@@ -917,6 +934,39 @@ def user_get(user):
 			pass
 	return payload
 
+@app.route('/protocol/<protocol>', methods=['GET'])
+def users_get(protocol):
+	if request.remote_addr in Banlist:
+		abort(403)
+	if len(protocol) < 1 or len(protocol) > 50:
+		abort(403)
+	Payload = "None"
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+		cur.execute('SELECT * FROM users WHERE protocols LIKE ?', ("%"+protocol+"%",))
+		result = cur.fetchall()
+		if len(result) > 1:
+			Payload = ""
+			for User in result:
+				last_online = User["last_online"]
+				if time.time() - float(last_online) < 600:
+					payload = User["payload"]
+					Payload += payload + "~"
+			if Payload != "":
+				Payload = Payload[:-1]
+			elif payload == "":
+				Payload = "None"
+	except:
+		pass
+	finally:
+		try:
+			con.close()
+		except:
+			pass
+	return Payload
+
 @app.route('/ban/new', methods=['POST'])
 def ban_new():
 	if request.remote_addr == "127.0.0.1" or request.remote_addr == "::ffff:127.0.0.1":
@@ -994,6 +1044,8 @@ def memory_new(identifier,payload):
 			return "Error"
 	elif result == "Received":
 		return "Received"
+	elif result == "pass":
+		return "pass"
 	else:
 		ban_post = requests.post("http://127.0.0.1:12995/ban/new", data=identifier)
 		return "Ban"
@@ -1030,9 +1082,9 @@ def ask_memory(account,peer):
 		public_key_hex = accounts[0]["public_key_hex"]
 		signature = messages.sign_message(private_key_hex, account+":"+timestamp)
 		signature = signature.encode("hex")
-		account = encrypt.encryptWithRSAKey(EncryptionKey,account)
-		public_key_hex = encrypt.encryptWithRSAKey(EncryptionKey,public_key_hex)
-		signature = encrypt.encryptWithRSAKey(EncryptionKey,signature)
+		account = encrypt.encryptAES(EncryptionKey,account)
+		public_key_hex = encrypt.encryptAES(EncryptionKey,public_key_hex)
+		signature = encrypt.encryptAES(EncryptionKey,signature)
 		if account == False or public_key_hex == False or signature == False:
 			return
 		ip_result = whatis(peer)
@@ -1043,7 +1095,7 @@ def ask_memory(account,peer):
 		else:
 			return_data = requests.get("http://["+peer+"]:12995/memory/search/"+Account+"/"+fake_public_key_hex+"/"+timestamp+"/"+fake_signature+"/"+account+"/"+public_key_hex+"/"+signature)
 		if return_data.content != "None" and return_data.status_code == 200:
-			payload = decrypt.decryptWithRSAKey(EncryptionKey,return_data.content)
+			payload = decrypt.decryptAES(EncryptionKey,return_data.content)
 			if payload == False:
 				return
 			result = memory_new(user,payload)
@@ -1208,37 +1260,38 @@ def ask_for_new_data():
 		pass
 
 def daemon_data():
+	try:
+		con = sql.connect("info.db", check_same_thread=False)
+		con.row_factory = sql.Row
+		cur = con.cursor()
+	except:
+		pass
 	while True:
 		try:
-			if len(memory_pool) > 1:
-				for data_in_pool in memory_pool:
-					details = data_in_pool.split(",")
-					time_added = details[3]
-					time_now = time.time()
-					if time_now - float(time_added) > 720:
-						memory_pool.remove(data_in_pool)
+			cur.execute('SELECT * FROM cache')
+			data_to_check = cur.fetchall()
+			for data_check in data_to_check:
+				timestamp = data_check["time"]
+				tx_hash = data_check["tx_hash"]
+				if time.time() - float(timestamp) > 600:
+					cur.execute('DELETE FROM cache WHERE tx_hash=?', (tx_hash,))
+					con.commit()
 		except:
 			pass
 
 		try:
-			if len(my_data) > 0:
-				for data_in_pool in my_data:
-					details = data_in_pool.split(",")
-					time_added = details[3]
-					time_now = time.time()
-					if time_now - float(time_added) > 1800:
-						my_data.remove(data_in_pool)
+			cur.execute('SELECT * FROM transactions')
+			data_to_check = cur.fetchall()
+			for data_check in data_to_check:
+				timestamp = data_check["time"]
+				transaction = data_check["tx_hash"]
+				if time.time() - float(timestamp) > 1800:
+					cur.execute('DELETE FROM transactions WHERE tx_hash=?', (transaction,))
+					con.commit()
 		except:
 			pass
 
-		try:
-			for transaction in my_transactions:
-				details = transaction.split(",")
-				timestamp = details[1]
-				if time.time() - float(timestamp) > 2000:
-					my_transactions.remove(transaction)
-		except:
-			pass
+		time.sleep(60)
 
 def daemon():
 	daemon_data_enabled = False
@@ -1395,22 +1448,6 @@ def daemon():
 			pass
 
 		try:
-			cur.execute('SELECT * FROM last_logs')
-			results = cur.fetchall()
-			if len(results) > 0:
-				checks = 0
-				while checks < len(results):
-					time_now = time.time()
-					Identifier = results[checks]["identifier"]
-					timestamp = results[checks]["time"]
-					if time_now - float(timestamp) > 300:
-						cur.execute('DELETE FROM last_logs WHERE identifier=?', (Identifier,))
-						con.commit()
-					checks += 1
-		except:
-			pass
-
-		try:
 			cur.execute('SELECT * FROM last_posts')
 			results = cur.fetchall()
 			if len(results) > 0:
@@ -1427,14 +1464,17 @@ def daemon():
 			pass
 
 		try:
-			if len(my_data) > 0:
+			cur.execute('SELECT * FROM cache WHERE status=?', ("PASS",))
+			result = cur.fetchall()
+			if len(result) > 0:
 				peers_to_post = []
 				for connection in PostTo:
 					connection_details = connection.split(",")
 					peer = connection_details[1]
 					if peer not in peers_to_post:
 						peers_to_post.append(peer)
-				for data_to_post in my_data:
+				for data_to_post in result:
+					data_to_post = data_to_post["data"]
 					if len(PostTo) > 0:
 						for peer in peers_to_post:
 							data_to_post_details = data_to_post.split(",")
@@ -1445,8 +1485,10 @@ def daemon():
 								new_data.new_data(peer,data_to_post)
 								cur.execute('INSERT INTO last_posts (peer,tx_hash,time) VALUES (?,?,?)', (peer,tx_hash,str(int(time.time()))))
 								con.commit()
-						my_data.remove(data_to_post)
-		except:
+						cur.execute('DELETE FROM cache WHERE tx_hash=?', (tx_hash,))
+						con.commit()
+		except Exception as e:
+			print e
 			pass
 
 		if daemon_data_enabled == False:

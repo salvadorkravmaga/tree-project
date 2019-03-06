@@ -54,7 +54,7 @@ def new_data(peer,payload):
 				return
 		else:
 			return
-		payload = encrypt.encryptWithRSAKey(usersEncryptionKey,payload)
+		payload = encrypt.encryptAES(usersEncryptionKey,payload)
 		if payload == False:
 			return
 		if ip_result == "4":

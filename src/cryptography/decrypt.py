@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 
-from base64 import *
+import base64
 from Crypto.Cipher import AES
 from Crypto.PublicKey import RSA
-from Crypto import Random
 import sqlite3 as sql
 
-BS = 16
-pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
-unpad = lambda s: s[:-ord(s[len(s) - 1:])]
+BLOCK_SIZE = 32
+PADDING = '{'
+pad = lambda s: s + (BLOCK_SIZE - len(s) % BLOCK_SIZE) * PADDING
 
-base64pad = lambda s: s + '=' * (4 - len(s) % 4)
-base64unpad = lambda s: s.rstrip("=")
+EncodeAES = lambda c, s: base64.b64encode(c.encrypt(pad(s)))
+DecodeAES = lambda c, e: c.decrypt(base64.b64decode(e)).rstrip(PADDING)
 
 def decryptfromPubKey(message):
 	try:
@@ -24,11 +23,11 @@ def decryptfromPubKey(message):
 			for key in keys:
 				try:
 					privateKey = key["private_key"]
-					rsakey = RSA.importKey(privateKey)
-					encrypted = message
-					raw_cipher_data = b64decode(encrypted)
-					decrypted = rsakey.decrypt(raw_cipher_data)
-					return decrypted
+					keyPub = RSA.importKey(privateKey)
+					cipher = Cipher_PKCS1_v1_5.new(keyPub)
+					cipher_text = base64.b64decode(message)
+					decrypt_text = cipher.decrypt(cipher_text, None).decode()
+					return decrypt_text
 				except:
 					pass
 			return False
@@ -42,13 +41,10 @@ def decryptfromPubKey(message):
 		except:
 			pass
 
-def decryptWithRSAKey(key, msg):
+def decryptAES(key, msg):
 	try:
-		key = key.decode("hex")
-	    	decoded_msg = urlsafe_b64decode(base64pad(msg))
-	    	iv = decoded_msg[:BS]
-	    	encrypted_msg = decoded_msg[BS:] 
-	    	cipher = AES.new(key, AES.MODE_CFB, iv, segment_size=AES.block_size * 8)
-	    	return unpad(cipher.decrypt(encrypted_msg))
+		cipher = AES.new(key.decode("hex"))
+		decrypted = DecodeAES(cipher,msg)
+		return decrypted
 	except:
 		return False

@@ -8,13 +8,49 @@ def check_payload(payload):
 	if len(details) == 10:
 		operation = details[0]
 		sender = details[1]
+		sender = sender.split("|")
+		senders_count = len(sender)
 		receiver = details[2]
+		receiver = receiver.split("|")
+		receivers_count = len(receiver)
                 additional3 = details[6]
-                Address = address.keyToAddr(additional3,sender)
-                if Address != sender:
-			return sender + "," + False
-		if len(sender) < 36 or len(receiver) < 36 or len(sender) > 50 or len(receiver) > 50:
-			return sender + "," + False
+		additional3 = additional3.split("|")
+		pkeys_count = len(additional3)
+		if senders_count == receivers_count:
+			if receivers_count == pkeys_count:
+				if pkeys_count > 10:
+					return "Just" + "," + "pass"
+				if pkeys_count > 1 and operation == "OSP":
+					return "Just" + "," + "pass"
+				for Sender in sender:
+					Address = ""
+					for Additional3 in additional3:
+						Address = address.keyToAddr(Additional3,Sender)
+						if Address == Sender:
+							break
+					if Address != Sender:
+						return "Just" + "," + "pass"
+					if len(Sender) < 36 or len(Sender) > 50:
+						return "Just" + "," + "pass"
+				if len(sender) == 1:
+					sender = sender[0]
+				else:
+					sender = '|'.join(sender)
+				if len(additional3) == 1:
+					additional3 = additional3[0]
+				else:
+					additional3 = '|'.join(additional3)
+				for Receiver in receiver:
+					if len(Receiver) < 36 or len(Receiver) > 50:
+						return "Just" + "," + "pass"
+				if len(receiver) == 1:
+					receiver = receiver[0]
+				else:
+					receiver = '|'.join(receiver)
+			else:
+				return "Just" + "," + "pass"
+		else:
+			return "Just" + "," + "pass"
 		timestamp = str(int(float(details[3])))
 		time_now = time.time()
 		additional1 = details[4]
@@ -26,12 +62,15 @@ def check_payload(payload):
 		if TX_hash == transaction_hash:
 			signature = details[-1]
 			final = TX_hash
-			prove_ownership = messages.verify_message(additional3, signature, final)
+			if pkeys_count == 1:
+				prove_ownership = messages.verify_message(additional3, signature, final)
+			else:
+				prove_ownership = True
 			if prove_ownership == True:
 				result = requests.get("http://127.0.0.1:12995/tx/"+TX_hash)
 				result = result.content
 				if result == "False":
-					requests.post("http://127.0.0.1:12995/tx/new", data=transaction_hash)
+					requests.post("http://127.0.0.1:12995/tx/new", data=transaction_hash+","+timestamp)
 					return sender + "," + "True"
 				else:
 					return sender + "," + "Received"

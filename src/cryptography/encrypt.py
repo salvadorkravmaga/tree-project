@@ -1,35 +1,31 @@
 # -*- coding: utf-8 -*-
 
-from base64 import *
-from Crypto.Cipher import AES, PKCS1_OAEP
+import base64
+from Crypto.Cipher import AES, PKCS1_v1_5 as Cipher_PKCS1_v1_5
 from Crypto.PublicKey import RSA
-from Crypto import Random
-import time
 
-BS = 16
-pad = lambda s: s + (BS - len(s) % BS) * chr(BS - len(s) % BS)
-unpad = lambda s: s[:-ord(s[len(s) - 1:])]
+BLOCK_SIZE = 32
+PADDING = '{'
+pad = lambda s: s + (BLOCK_SIZE - len(s) % BLOCK_SIZE) * PADDING
 
-base64pad = lambda s: s + '=' * (4 - len(s) % 4)
-base64unpad = lambda s: s.rstrip("=")
+EncodeAES = lambda c, s: base64.b64encode(c.encrypt(pad(s)))
+DecodeAES = lambda c, e: c.decrypt(base64.b64decode(e)).rstrip(PADDING)
 
 def encryptwithPubKey(publicKey,text):
 	try:
-		publicKey = RSA.importKey(publicKey,None)
-		encryptor = PKCS1_OAEP.new(publicKey)
-		enc=encryptor.encrypt(text)
-		encb64 = encodestring(enc)
-		encb64 = encb64.replace("\n","")
-		return encb64
-	except:
+		keyPub = RSA.importKey(publicKey)
+		cipher = Cipher_PKCS1_v1_5.new(keyPub)
+		cipher_text = cipher.encrypt(text.encode())
+		emsg = base64.b64encode(cipher_text)
+		return emsg
+	except Exception as e:
+		print e
 		return False
 
-def encryptWithRSAKey(key, msg):
+def encryptAES(key, msg):
 	try:
-		key = key.decode("hex")
-		iv = Random.new().read(BS)
-	    	cipher = AES.new(key, AES.MODE_CFB, iv, segment_size=AES.block_size * 8)
-	    	encrypted_msg = cipher.encrypt(pad(str(msg)))
-	    	return base64unpad(urlsafe_b64encode(iv + encrypted_msg))
+		cipher = AES.new(key.decode("hex"))
+		encrypted = EncodeAES(cipher,msg)
+		return encrypted
 	except:
 		return False

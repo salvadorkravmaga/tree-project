@@ -73,10 +73,14 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 			try:
 				protocols = additional2.decode("hex")
 				protocols_details = protocols.split(",")
-				if "OSP" in protocols_details:
-					protocols_details.remove("OSP")
-				if len(protocols_details) > 0:
-					protocols = ','.join(protocols_details)
+				Protocols = []
+				for protocol in protocols_details:
+					if protocol not in Protocols:
+						Protocols.append(protocol)
+				if "OSP" in Protocols:
+					Protocols.remove("OSP")
+				if len(Protocols) > 0:
+					protocols = ','.join(Protocols)
 				else:
 					protocols = "None"
 			except:
@@ -88,15 +92,30 @@ def online_status(sender,receiver,timestamp,additional1,additional2,additional3,
 					cur.execute('INSERT INTO users (identifier,public_key_hex,public_key,last_online,protocols,payload) VALUES (?,?,?,?,?,?)', (sender,additional3,Data,timestamp,protocols,payload))
 					con.commit()
 				else:
-					cur.execute('UPDATE users SET public_key=?,last_online=?,protocols=?,payload=? WHERE identifier=?', (Data,timestamp,protocols,payload,sender))
+					Protocols = result[0]["protocols"]
+					PROTOCOLS = []
+					if protocols != "None":
+						protocols_details = protocols.split(",")
+						for protocol in protocols_details:
+							if protocol not in PROTOCOLS:
+								PROTOCOLS.append(protocol)
+					if Protocols != "None":
+						protocols_details = Protocols.split(",")
+						for protocol in protocols_details:
+							if protocol not in PROTOCOLS:
+								PROTOCOLS.append(protocol)
+					if len(PROTOCOLS) == 0:
+						PROTOCOLS = "None"
+					else:
+						PROTOCOLS = ','.join(PROTOCOLS)
+					cur.execute('UPDATE users SET public_key=?,last_online=?,protocols=?,payload=? WHERE identifier=?', (Data,timestamp,PROTOCOLS,payload,sender))
 					con.commit()
 				return True
 			else:
 				return False
 		else:
 			return False
-	except Exception as e:
-		print e
+	except:
 		pass
 	finally:
 		try:

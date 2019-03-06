@@ -74,8 +74,8 @@ CREATE TABLE IF NOT EXISTS banlist (
 
 NEW_TABLE
 
-CREATE TABLE IF NOT EXISTS last_logs (
-        identifier text NOT NULL,
+CREATE TABLE IF NOT EXISTS transactions (
+	tx_hash text NOT NULL,
 	time text NOT NULL
 );
 
@@ -94,4 +94,16 @@ CREATE TABLE IF NOT EXISTS connections (
 	receiver text NOT NULL,
 	times_connected text NOT NULL,
 	time text NOT NULL
+);
+
+NEW_TABLE
+
+CREATE TABLE IF NOT EXISTS cache (
+	sender text NOT NULL,
+	receiver text NOT NULL,
+	time text NOT NULL,
+	operation text NOT NULL,
+	tx_hash text NOT NULL,
+	data text NOT NULL,
+	status text NOT NULL
 );

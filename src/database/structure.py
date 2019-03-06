@@ -33,7 +33,8 @@ def main(db_file_path, folder_path):
 				create(conn, structure)
 		else:
 			print("Error! cannot create the database connection.")
-	except:
+	except Exception as e:
+		print e
 		pass
 	finally:
 		try:
