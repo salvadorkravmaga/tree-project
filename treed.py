@@ -29,7 +29,7 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.CRITICAL)
 
 accounts = []
-nodes = []
+nodes = ["104.200.67.51"]
 connections = []
 GetFromSettings = {}
 PostToSettings = {}
