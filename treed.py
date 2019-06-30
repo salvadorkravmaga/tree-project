@@ -29,7 +29,7 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.CRITICAL)
 
 accounts = []
-nodes = ["104.200.67.51"]
+nodes = ["::ffff:104.200.67.51"]
 connections = []
 GetFromSettings = {}
 PostToSettings = {}
@@ -1116,10 +1116,11 @@ def app_server():
 		print "[!] Trying to start Flask server"
 		print "	[+] Flask server started!"
 		if machine == "Linux" or machine == "Darwin":
-			app.run(host='::', port=12995, threaded=True)
+			app.run(host='0.0.0.0', port=12995, threaded=True)
 		else:
 			app.run(host='127.0.0.1', port=12995, threaded=True)
-	except (Exception,KeyboardInterrupt):
+	except (Exception,KeyboardInterrupt) as e:
+		print e
 		pass
 	
 def send_online_status():
